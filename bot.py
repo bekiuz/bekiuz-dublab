@@ -30,7 +30,7 @@ from mtproto_download import (
     start_mtproto,
     stop_mtproto,
 )
-from session_store import delete_session, get_session, remove_local_file, save_session
+from session_store import delete_session, delete_session_if_matches, get_session, remove_local_file, save_session
 
 logging.basicConfig(
     level=logging.INFO,
@@ -344,10 +344,19 @@ async def process_audio(
         )
         await status.edit_text("<b>✅ DUBLYAJ TAHLILI TAYYOR</b>\n\nQuyida ijroing bo‘yicha batafsil fikrlar.")
         await answer_long(message, result)
-        await message.answer(
-            "<b>🔁 YANA BIR URINISH?</b>\n\n"
-            "Maslahatlarni sinab ko‘rib, yangi audio yubor. Uni shu sahna bilan yana solishtiraman."
-        )
+
+        # Baholash tugagach, ishlatilgan sahnani sessiyadan va xotiradan tozalaymiz.
+        # Boshqa video shu paytda yuklangan bo‘lsa, uning yangi sessiyasiga tegmaymiz.
+        removed_session = delete_session_if_matches(user.id, session["video_path"])
+        remove_local_file(session.get("video_path"))
+        if session.get("gemini_file_name"):
+            await asyncio.to_thread(delete_remote_file, session["gemini_file_name"])
+        if removed_session:
+            await message.answer(
+                "<b>🧹 SAHNA O‘CHIRILDI</b>\n\n"
+                "Baholash tugadi va sahna fayllari tozalandi. Yana dublyaj qilish uchun "
+                "videoni qayta yubor, keyin yangi ovozingni jo‘nat."
+            )
     except ValueError as exc:
         await status.edit_text(f"<b>⚠️ OVOZNI TEKSHIRIB BO‘LMADI</b>\n\n{html.escape(str(exc))}")
     except Exception:
@@ -373,7 +382,7 @@ async def start_handler(message: Message):
         "vaziyat va videodagi ovozni tahlil qilaman.\n\n"
         "🎤 <b>2. OVOZINGNI YUBOR</b> — alohida voice yoki audio yubor.\n\n"
         "📊 <b>3. BAHO VA MASLAHAT</b> — emotsiya, ifoda, ritm, pauza va talaffuz "
-        "bo‘yicha fikr hamda 100 ballik baho ol.\n\n"
+        "bo‘yicha fikr hamda 0 dan 10 gacha butun sonli baho ol.\n\n"
         "<b>BUYRUQLAR</b>\n"
         "/help — foydalanish qo‘llanmasi\n"
         "/reset — joriy sahnani almashtirish\n\n"
@@ -391,11 +400,10 @@ async def help_handler(message: Message):
         "<b>② OVOZINGNI YUBOR</b>\n"
         "Video tahlilidan keyin o‘zing yozgan dublyajni voice yoki audio sifatida yubor.\n\n"
         "<b>③ NATIJANI OL</b>\n"
-        "📊 Emotsiya mosligi\n"
-        "🎙️ Ovoz ifodasi va niyat\n"
-        "⏱️ Tezlik, ritm va pauzalar\n"
-        "🗣️ Talaffuz va tushunarlilik\n"
-        "🎬 Sinxronlik — faqat ishonchli o‘lchash mumkin bo‘lsa\n\n"
+        "📊 Har bir mezon va umumiy baho 0–10 oralig‘ida, butun son bilan beriladi.\n"
+        "🎭 Emotsiya mosligi va uni ovozda yetkazish kuchi alohida baholanadi.\n"
+        "⚠️ 0–5: sahnaga mos emas; 6–7: qisman mos; 8–9: yaxshi; 10: juda aniq.\n"
+        "🧹 Baholash tugagach, sahna avtomatik o‘chiriladi.\n\n"
         "<b>FOYDALI BUYRUQLAR</b>\n"
         "/start — boshidan boshlash\n"
         "/reset — oldingi video sessiyasini tozalash\n"
