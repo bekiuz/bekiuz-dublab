@@ -266,19 +266,20 @@ async def process_audio(
     file_size: int | None = None,
 ):
     if not private_chat_only(message):
-        await message.answer("Maxfiylik uchun botdan shaxsiy chatda foydalaning.")
+        await message.answer("<b>🔒 SHAXSIY CHAT</b>\n\nDubLab’dan foydalanish uchun menga shaxsiy chatda yoz.")
         return
 
     user = message.from_user
     if user is None:
-        await message.answer("Foydalanuvchini aniqlab bo‘lmadi.")
+        await message.answer("<b>⚠️ FOYDALANUVCHI ANIQLANMADI</b>\n\nQayta urinib ko‘r.")
         return
 
     session = get_session(user.id)
     if not session or not session.get("video_path") or not Path(session["video_path"]).is_file():
         await message.answer(
-            "Avval anime videosini yubor. Men sahna emotsiyasini aniqlayman, "
-            "keyin ovozingni shu video bilan solishtiraman."
+            "<b>🎬 AVVAL SAHNANI TANLAYMIZ</b>\n\n"
+            "Birinchi bo‘lib anime videosini yubor. Men undagi emotsiya va vaziyatni tahlil qilaman.\n\n"
+            "Keyin o‘z dublyaj ovozingni yuborishing mumkin."
         )
         return
 
