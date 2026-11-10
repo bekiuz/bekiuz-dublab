@@ -21,6 +21,12 @@ from config import (
     UPLOADS_DIR,
     validate_config,
 )
+from mtproto_download import (
+    download_bot_file,
+    is_mtproto_ready,
+    start_mtproto,
+    stop_mtproto,
+)
 from session_store import delete_session, get_session, remove_local_file, save_session
 
 logging.basicConfig(
@@ -47,6 +53,7 @@ else:
     logger.info("Telegram cloud Bot API ishlatilmoqda.")
 
 dp = Dispatcher()
+BOT_API_DOWNLOAD_LIMIT = 20 * 1024 * 1024
 
 
 def private_chat_only(message: Message) -> bool:
@@ -74,25 +81,47 @@ async def answer_long(message: Message, text: str) -> None:
         await message.answer(part)
 
 
-async def download_to_path(message: Message, file_id: str, destination: Path):
+async def download_to_path(
+    message: Message,
+    file_id: str,
+    destination: Path,
+    file_size: int | None = None,
+):
+    destination.parent.mkdir(parents=True, exist_ok=True)
+
+    if not TELEGRAM_LOCAL_MODE and is_mtproto_ready():
+        try:
+            await download_bot_file(file_id, destination, file_size=file_size)
+            logger.info(
+                "Media MTProto orqali yuklandi (%s bytes).",
+                destination.stat().st_size,
+            )
+            return
+        except Exception as exc:
+            logger.exception("MTProto orqali faylni yuklashda xatolik")
+            if file_size and file_size > BOT_API_DOWNLOAD_LIMIT:
+                raise ValueError(
+                    "Katta fayl MTProto orqali yuklanmadi. TELEGRAM_API_ID/HASH "
+                    "va bot sessiyasi to‘g‘ri sozlanganini tekshiring."
+                ) from exc
+            # Small files can still use the regular Bot API as a fallback.
+
     try:
         telegram_file = await bot.get_file(file_id)
     except TelegramBadRequest as exc:
         if "file is too big" in str(exc).lower():
             raise ValueError(
-                "Bu fayl Telegram cloud Bot API yuklab olish chegarasidan katta. "
-                "Cheksiz yuklab olish uchun .env da Local Bot API server yoqilganini "
-                "va server ishlayotganini tekshiring."
+                "Bu fayl Telegram standart Bot API yuklab olish chegarasidan katta. "
+                "20 MB dan katta fayllar uchun TELEGRAM_API_ID va TELEGRAM_API_HASH "
+                "sozlanib, MTProto bot ulanishi yoqilgan bo‘lishi kerak."
             ) from exc
         raise
 
     if not telegram_file.file_path:
         raise RuntimeError("Telegram fayl manzilini qaytarmadi.")
 
-    destination.parent.mkdir(parents=True, exist_ok=True)
-
     if TELEGRAM_LOCAL_MODE:
-        # In Local Bot API mode getFile returns an absolute path on the server host.
+        # Local Bot API returns an absolute path on the server host.
         # The bot process must share that same filesystem.
         source = Path(telegram_file.file_path)
         if not source.is_absolute():
@@ -127,7 +156,13 @@ def safe_extension(filename: str | None, fallback: str) -> str:
     return fallback
 
 
-async def process_video(message: Message, file_id: str, filename: str, mime_type: str):
+async def process_video(
+    message: Message,
+    file_id: str,
+    filename: str,
+    mime_type: str,
+    file_size: int | None = None,
+):
     if not private_chat_only(message):
         await message.answer("Maxfiylik uchun botdan shaxsiy chatda foydalaning.")
         return
@@ -145,7 +180,7 @@ async def process_video(message: Message, file_id: str, filename: str, mime_type
     )
 
     try:
-        await download_to_path(message, file_id, path)
+        await download_to_path(message, file_id, path, file_size=file_size)
         result = await asyncio.to_thread(analyze_video, str(path), mime_type)
         previous = get_session(user.id)
         if previous and previous.get("video_path") != str(path):
@@ -179,7 +214,13 @@ async def process_video(message: Message, file_id: str, filename: str, mime_type
         )
 
 
-async def process_audio(message: Message, file_id: str, filename: str | None, mime_type: str):
+async def process_audio(
+    message: Message,
+    file_id: str,
+    filename: str | None,
+    mime_type: str,
+    file_size: int | None = None,
+):
     if not private_chat_only(message):
         await message.answer("Maxfiylik uchun botdan shaxsiy chatda foydalaning.")
         return
@@ -205,7 +246,7 @@ async def process_audio(message: Message, file_id: str, filename: str | None, mi
     )
 
     try:
-        await download_to_path(message, file_id, voice_path)
+        await download_to_path(message, file_id, voice_path, file_size=file_size)
         result = await asyncio.to_thread(
             evaluate_voice,
             session["video_path"],
@@ -257,8 +298,9 @@ async def help_handler(message: Message):
         "bilan taqqoslaydi.\n\n"
         "📊 Baholash: emotsiya, ovoz ifodasi, ritm/pauza, talaffuz va faqat "
         "o‘lchash mumkin bo‘lsa sinxronlik.\n\n"
-        "📦 Botda alohida 18 MB cheklov yo‘q. Telegram standart serverining "
-        "20 MB yuklab olish chegarasi amal qiladi. Botdan shaxsiy chatda foydalan."
+        "📦 20 MB dan katta videolar uchun TELEGRAM_API_ID va TELEGRAM_API_HASH "
+        "sozlangan bo‘lishi kerak. MTProto ishlamasa, Telegram standart 20 MB "
+        "yuklab olish chegarasi amal qiladi."
     )
 
 
@@ -283,7 +325,9 @@ async def video_handler(message: Message):
         return
     filename = video.file_name or "anime_clip.mp4"
     mime_type = video.mime_type or mimetypes.guess_type(filename)[0] or "video/mp4"
-    await process_video(message, video.file_id, filename, mime_type)
+    await process_video(
+        message, video.file_id, filename, mime_type, file_size=video.file_size
+    )
 
 
 @dp.message(F.document)
@@ -297,11 +341,17 @@ async def document_handler(message: Message):
     if mime_type.startswith("video/") or Path(filename).suffix.lower() in {
         ".mp4", ".mov", ".webm", ".mkv", ".avi"
     }:
-        await process_video(message, document.file_id, filename, mime_type or "video/mp4")
+        await process_video(
+            message, document.file_id, filename, mime_type or "video/mp4",
+            file_size=document.file_size,
+        )
     elif mime_type.startswith("audio/") or Path(filename).suffix.lower() in {
         ".mp3", ".ogg", ".oga", ".wav", ".m4a", ".aac", ".flac"
     }:
-        await process_audio(message, document.file_id, filename, mime_type or "audio/ogg")
+        await process_audio(
+            message, document.file_id, filename, mime_type or "audio/ogg",
+            file_size=document.file_size,
+        )
     else:
         await message.answer(
             "Video yoki audio fayl yubor. Formatlar: MP4, MOV, WebM, MP3, OGG, WAV."
@@ -313,7 +363,10 @@ async def voice_handler(message: Message):
     voice = message.voice
     if voice is None:
         return
-    await process_audio(message, voice.file_id, "voice.ogg", voice.mime_type or "audio/ogg")
+    await process_audio(
+        message, voice.file_id, "voice.ogg", voice.mime_type or "audio/ogg",
+        file_size=voice.file_size,
+    )
 
 
 @dp.message(F.audio)
@@ -322,10 +375,8 @@ async def audio_handler(message: Message):
     if audio is None:
         return
     await process_audio(
-        message,
-        audio.file_id,
-        audio.file_name or "voice.mp3",
-        audio.mime_type or "audio/mpeg",
+        message, audio.file_id, audio.file_name or "voice.mp3",
+        audio.mime_type or "audio/mpeg", file_size=audio.file_size,
     )
 
 
@@ -339,8 +390,12 @@ async def text_fallback(message: Message):
 
 async def main():
     logger.info("Bekiuz DubLab ishga tushmoqda...")
-    await bot.delete_webhook(drop_pending_updates=True)
-    await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
+    await start_mtproto()
+    try:
+        await bot.delete_webhook(drop_pending_updates=True)
+        await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
+    finally:
+        await stop_mtproto()
 
 
 if __name__ == "__main__":
