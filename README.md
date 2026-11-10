@@ -110,6 +110,39 @@ Server ishlashda davom etishi kerak. Bot ham shu qurilmada va shu fayl tizimida 
 
 Telegram cloud API'dan Local API'ga o‘tishdan oldin `logOut` chaqirilishi shart. Cloud API'ga qayta kirishda Telegram 10 daqiqa kutishni talab qiladi.
 
+### Telefonda sinab ko‘rish: Termux + Ubuntu (tajriba)
+
+PRoot-Distro orqali Termux ichida Ubuntu userland ochish mumkin. Bu rasmiy Telegram Android build'i emas; Ubuntu container ichida Linux build yo‘lini sinab ko‘ramiz. Telefon xotirasi/RAM yetarli bo‘lmasligi yoki build xatolashi mumkin.
+
+Termux oynasida:
+
+    pkg update && pkg upgrade -y
+    pkg install proot-distro -y
+    proot-distro install ubuntu:24.04
+    proot-distro login ubuntu
+
+Ubuntu ichida Telegram Local Bot API build dependencies va Python vositalarini o‘rnating:
+
+    apt update
+    apt install -y git cmake g++ clang gperf libssl-dev zlib1g-dev python3 python3-venv python3-pip
+
+Keyin Telegram serverini build qiling:
+
+    git clone --recursive https://github.com/tdlib/telegram-bot-api.git
+    cd telegram-bot-api
+    mkdir build
+    cd build
+    cmake -DCMAKE_BUILD_TYPE=Release ..
+    cmake --build . --target install --parallel 1
+
+Build tugasa, o‘zingizning api_id va api_hash qiymatlaringiz bilan serverni ishga tushiring:
+
+    telegram-bot-api --api-id=YOUR_API_ID --api-hash=YOUR_API_HASH --local --http-port=8081
+
+Server terminali ochiq tursin. Ikkinchi Termux oynasida yana Ubuntu'ga kiring (`proot-distro login ubuntu`), bot repository'sini o‘sha Ubuntu ichida klonlang va `TELEGRAM_API_BASE_URL=http://127.0.0.1:8081`, `TELEGRAM_LOCAL_MODE=true` qilib sozlang. So‘ng `python switch_to_local.py` va `python bot.py` ni bajaring.
+
+Bot va Local Bot API serverni aynan bitta Ubuntu container/fayl tizimida ishlating: aks holda Local Bot API qaytargan mutlaq fayl yo‘lini bot topa olmaydi.
+
 ### Termux / Android haqida
 
 Rasmiy Telegram build generatorida Windows, Linux, macOS va BSD oilalari bor; Android/Termux alohida build target sifatida ko‘rsatilmagan. Shuning uchun `telegram-bot-api` serverini Termux'da kompilyatsiya qilishni hozircha kafolatlab bo‘lmaydi. Python bot kodi esa Local API bilan ishlashga tayyor. Agar Termux'da server binarini build qilib bo‘lmasa, Local API va Python botni bir xil Linux qurilmada ishga tushirish kerak bo‘ladi — alohida qurilmalarda absolute file path mos kelmaydi.
