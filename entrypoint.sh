@@ -53,7 +53,7 @@ if [[ "$API_READY" != "true" ]]; then
 fi
 
 if [[ "${TELEGRAM_AUTO_LOGOUT:-false}" == "true" && ! -f "$DATA_DIR/.cloud-api-logged-out" ]]; then
-  echo "[startup] Moving bot from Telegram cloud API to Local Bot API (one-time step)...
+  echo "[startup] Moving bot from Telegram cloud API to Local Bot API (one-time step)..."
   python /app/switch_to_local.py --yes
   touch "$DATA_DIR/.cloud-api-logged-out"
 fi
