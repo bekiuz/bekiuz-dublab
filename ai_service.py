@@ -3,7 +3,7 @@ import mimetypes
 import time
 from pathlib import Path
 
-from google import genai
+from google import genai, types
 
 from config import GEMINI_API_KEY, GEMINI_MODEL
 
@@ -82,7 +82,19 @@ def _new_client() -> genai.Client:
         raise RuntimeError(
             "GEMINI_API_KEY sozlanmagan. Google AI Studio kalitini .env fayliga kiriting."
         )
-    return genai.Client(api_key=GEMINI_API_KEY)
+    return genai.Client(
+        api_key=GEMINI_API_KEY,
+        http_options=types.HttpOptions(
+            retry_options=types.HttpRetryOptions(
+                attempts=3,
+                initial_delay=2.0,
+                max_delay=12.0,
+                exp_base=2.0,
+                jitter=0.3,
+                http_status_codes=[500, 502, 503, 504],
+            )
+        ),
+    )
 
 
 def _wait_until_ready(client: genai.Client, uploaded_file, timeout_seconds: int = 180):
@@ -135,7 +147,9 @@ def analyze_video(video_path: str, mime_type: str | None = None) -> str:
     client = _new_client()
     uploaded_files = []
     try:
+        logger.info("Gemini video faylini qabul qildi; sahna tahlili boshlanmoqda.")
         video = _upload(client, path, uploaded_files)
+        logger.info("Gemini video tayyor; Interactions so‘rovi yuborilmoqda.")
         interaction = client.interactions.create(
             model=GEMINI_MODEL,
             input=[
@@ -147,7 +161,9 @@ def analyze_video(video_path: str, mime_type: str | None = None) -> str:
                 },
             ],
         )
-        return _output_text(interaction)
+        result = _output_text(interaction)
+        logger.info("Gemini sahna tahlilini muvaffaqiyatli yakunladi.")
+        return result
     finally:
         _delete_uploaded_files(client, uploaded_files)
         client.close()
