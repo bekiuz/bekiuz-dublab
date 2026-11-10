@@ -223,7 +223,8 @@ async def process_video(
         return
 
     extension = safe_extension(filename, ".mp4")
-    path = user_folder(user.id) / f"scene{extension}"
+    # Har bir video uchun alohida fayl: parallel yuborilgan videolar bir-birini bosib ketmasin.
+    path = user_folder(user.id) / f"scene_{message.message_id}{extension}"
     status = await message.answer(
         "<b>🎬 VIDEO QABUL QILINDI</b>\n\n"
         "Faylni yuklayapman, keyin sahna va personaj emotsiyasini tahlil qilaman.\n"
