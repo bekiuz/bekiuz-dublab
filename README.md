@@ -97,7 +97,7 @@ Keyin:
 - Sessiya videosi Termux ichidagi data/uploads/ papkasida saqlanadi.
 - Sessiya ma'lumotlari data/sessions.json faylida turadi.
 - data/ va .env GitHub’ga yuborilmaydi.
-- Video va audio tahlil uchun Google Gemini API'ga uzatiladi. Maxfiy yoki shaxsiy videolarni yubormang.
+- Video va audio tahlil uchun Google Gemini API'ga uzatiladi. Tahlil tugagach, bot Gemini'ga vaqtincha yuklangan fayllarni o‘chirishga urinadi. Maxfiy yoki shaxsiy videolarni yubormang.
 - /reset joriy sessiyadagi videoni o‘chiradi.
 
 ## Xatolar
