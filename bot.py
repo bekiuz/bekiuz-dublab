@@ -1,17 +1,26 @@
 import asyncio
 import logging
 import mimetypes
+import shutil
 from datetime import datetime, timezone
 from pathlib import Path
 
 from aiogram import Bot, Dispatcher, F
+from aiogram.client.session.aiohttp import AiohttpSession
+from aiogram.client.telegram import TelegramAPIServer
 from aiogram.enums import ChatType
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import Command, CommandStart
 from aiogram.types import Message
 
 from ai_service import analyze_video, evaluate_voice
-from config import BOT_TOKEN, UPLOADS_DIR, validate_config
+from config import (
+    BOT_TOKEN,
+    TELEGRAM_API_BASE_URL,
+    TELEGRAM_LOCAL_MODE,
+    UPLOADS_DIR,
+    validate_config,
+)
 from session_store import delete_session, get_session, remove_local_file, save_session
 
 logging.basicConfig(
@@ -21,7 +30,22 @@ logging.basicConfig(
 logger = logging.getLogger("bekiuz-dublab")
 
 validate_config()
-bot = Bot(token=BOT_TOKEN)
+
+if TELEGRAM_API_BASE_URL:
+    telegram_api = TelegramAPIServer.from_base(
+        TELEGRAM_API_BASE_URL,
+        is_local=TELEGRAM_LOCAL_MODE,
+    )
+    bot = Bot(token=BOT_TOKEN, session=AiohttpSession(api=telegram_api))
+    logger.info(
+        "Custom Telegram API server: %s (local_mode=%s)",
+        TELEGRAM_API_BASE_URL,
+        TELEGRAM_LOCAL_MODE,
+    )
+else:
+    bot = Bot(token=BOT_TOKEN)
+    logger.info("Telegram cloud Bot API ishlatilmoqda.")
+
 dp = Dispatcher()
 
 
@@ -56,9 +80,9 @@ async def download_to_path(message: Message, file_id: str, destination: Path):
     except TelegramBadRequest as exc:
         if "file is too big" in str(exc).lower():
             raise ValueError(
-                "Telegram standart Bot API 20 MB dan katta faylni botga yuklab "
-                "bermaydi. Botdagi 18 MB ichki cheklov olib tashlangan; kattaroq "
-                "fayllar uchun alohida Local Bot API Server kerak bo‘ladi."
+                "Bu fayl Telegram cloud Bot API yuklab olish chegarasidan katta. "
+                "Cheksiz yuklab olish uchun .env da Local Bot API server yoqilganini "
+                "va server ishlayotganini tekshiring."
             ) from exc
         raise
 
@@ -66,7 +90,25 @@ async def download_to_path(message: Message, file_id: str, destination: Path):
         raise RuntimeError("Telegram fayl manzilini qaytarmadi.")
 
     destination.parent.mkdir(parents=True, exist_ok=True)
-    await bot.download_file(telegram_file.file_path, destination=destination)
+
+    if TELEGRAM_LOCAL_MODE:
+        # In Local Bot API mode getFile returns an absolute path on the server host.
+        # The bot process must share that same filesystem.
+        source = Path(telegram_file.file_path)
+        if not source.is_absolute():
+            raise RuntimeError(
+                "Local Bot API mutlaq fayl yo‘lini qaytarmadi. "
+                "Server --local rejimida ishlayotganini tekshiring."
+            )
+        if not source.is_file():
+            raise RuntimeError(
+                "Local Bot API fayl yo‘li bot ishlayotgan qurilmada topilmadi. "
+                "Bot va Local Bot API server bir xil fayl tizimida ishlashi kerak."
+            )
+        shutil.copyfile(source, destination)
+    else:
+        await bot.download_file(telegram_file.file_path, destination=destination)
+
     if not destination.exists() or destination.stat().st_size == 0:
         raise RuntimeError("Fayl yuklab olinmadi. Qayta yuborib ko‘ring.")
 
