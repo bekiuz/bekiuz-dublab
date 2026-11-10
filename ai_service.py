@@ -20,13 +20,21 @@ Vazifang:
 5. Audio yo‘q yoki nutq aniq eshitilmasa, ovoz ijrosi bo‘yicha baho to‘qima; buni ochiq ayt.
 
 JAVOBNI O‘ZBEK TILIDA, LOTIN YOZUVDA, quyidagi tartibda yoz:
-🎬 SAHNA: qisqa vaziyat tavsifi
+🎬 SAHNA: qisqa, jonli vaziyat tavsifi
 🎭 KERAKLI EMOTSIYA: asosiy va kerak bo‘lsa ikkilamchi emotsiya
 🎙️ QANDAY OVOZ BERISH KERAK: ovoz kuchi, ohang, tezlik, pauza va urg‘u
 🔎 VIDEODAGI OVOZ TAHLILI: nutq eshitiladimi, ijro emotsiyaga mosmi; yetarli ma’lumot bo‘lmasa ayt
 📊 MOSLIK BAHOSI: faqat aniq nutq eshitilib, baholash mumkin bo‘lsa taxminiy 100 ballik baho; aks holda “baholanmadi”
-💡 MURABBIY MASLAHATI: qayta yozish uchun bitta aniq ko‘rsatma
+💡 MURABBIY MASLAHATI: qayta yozish uchun bitta aniq, bajarish oson ko‘rsatma
 📌 ISHONCH DARAJASI: yuqori/o‘rtacha/past va nima sababdan.
+
+JAVOB DIZAYNI:
+- Har bir bo‘lim nomini alohida qatorda, katta harflar bilan yoz.
+- Har bo‘lim ostida 1–3 ta qisqa, mazmunli jumla ishlat.
+- Kerak joyda qisqa punktlar bilan urg‘u, pauza va tezlikni ajrat.
+- Muhim tavsiyani aniq misol bilan ko‘rsat; umumiy gap bilan cheklanma.
+- Javobni tartibli, professional, iliq murabbiy ohangida yoz; ortiqcha kirish va takrorlardan qoch.
+- Markdown yulduzchalari yoki HTML teglarini ishlatma; bot sarlavhalarni o‘zi formatlaydi.
 
 Shaxsni aniqlashga urinma va videodagi ovoz egasini foydalanuvchi deb taxmin qilma. Original aktyorning ovoz tembrini nusxalashni buyurma; vaziyatga mos aktyorlikni tushuntir. Tez almashuvchi kadrlar sabab ayrim mimikalar ko‘rinmasligi mumkin — noaniqlikni tan ol.
 """
@@ -48,14 +56,22 @@ Vazifa: foydalanuvchining AUDIO ijrosini videodagi sahna mazmuni va personajning
 Sinxronlikni ishonchli aniqlab bo‘lmasa, “o‘lchanmadi” deb yoz va qolgan mezonlarga qarab umumiy bahoni mutanosib hisobla. Nutq yetarli bo‘lmasa, soxta ball bermagin. Baland ovozni o‘z-o‘zidan yaxshi ijro deb hisoblama. Qaysi so‘z yoki lahzada nima xato bo‘lganini vaqt belgisi bilan faqat vaqtni aniqlay olsang ko‘rsat.
 
 JAVOB O‘ZBEK TILIDA, LOTIN YOZUVDA:
-🎭 SAHNA EMOTSIYASI
-🎙️ SENING IJROINGDA ANIQLANGAN EMOTSIYA
-📊 UMUMIY BAHO: xx/100
-📋 MEZONLAR: har biri uchun ball va qisqa sabab
-✅ YAXSHI CHIQQAN JOYLAR
+🎭 SAHNA EMOTSIYASI: videodagi vaziyat va personaj kayfiyati
+🎙️ SENING IJROING: eshitilgan emotsiya va ijro niyati
+📊 UMUMIY BAHO: xx/100 yoki “baholanmadi”
+📋 MEZONLAR: har biri uchun ball va qisqa, asosli sabab
+✅ YAXSHI CHIQQAN JOYLAR: aniq kuchli tomonlar
 🛠️ TUZATISH KERAK: aniq ibora/lahza va nima qilish kerak
 🎬 QAYTA DUBL UCHUN KO‘RSATMA: qanday ohangda, tezlikda va pauza bilan aytish
-📌 ISHONCH DARAJASI: yuqori/o‘rtacha/past.
+📌 ISHONCH DARAJASI: yuqori/o‘rtacha/past va nima sababdan.
+
+JAVOB DIZAYNI:
+- Har bir bo‘lim nomini alohida qatorda, katta harflar bilan yoz.
+- Umumiy bahodan keyin mezonlarni ixcham ro‘yxat ko‘rinishida ko‘rsat.
+- Har bir tanqid yonida tuzatishning aniq usulini ber.
+- Avval kuchli tomonlarni, keyin yaxshilash kerak bo‘lgan joylarni yoz.
+- Ohang professional, muloyim va motivatsion bo‘lsin; sun’iy maqtov yoki qattiq tanqid bo‘lmasin.
+- Markdown yulduzchalari yoki HTML teglarini ishlatma; bot sarlavhalarni o‘zi formatlaydi.
 
 Videoda qaysi qismni dublyaj qilish kerakligi noaniq bo‘lsa, buni ayt; butun videodan taxminiy xulosa chiqarib, aniq lab-sinxronlik bor deb da’vo qilma.
 """
