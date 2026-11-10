@@ -15,7 +15,7 @@ from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import Command, CommandStart
 from aiogram.types import Message
 
-from ai_service import analyze_video, evaluate_voice
+from ai_service import analyze_video, delete_remote_file, evaluate_voice
 from config import (
     BOT_TOKEN,
     TELEGRAM_API_BASE_URL,
@@ -245,10 +245,13 @@ async def process_video(
             "Gemini sahna va personaj emotsiyasini tahlil qilmoqda. "
             "Xizmat band bo‘lsa, avtomatik qayta urinib ko‘raman."
         )
-        result = await asyncio.to_thread(analyze_video, str(path), mime_type)
+        analysis_data = await asyncio.to_thread(analyze_video, str(path), mime_type)
+        result = analysis_data["text"]
         previous = get_session(user.id)
-        if previous and previous.get("video_path") != str(path):
+        if previous:
             remove_local_file(previous.get("video_path"))
+            if previous.get("gemini_file_name"):
+                await asyncio.to_thread(delete_remote_file, previous["gemini_file_name"])
 
         save_session(
             user.id,
@@ -257,6 +260,9 @@ async def process_video(
                 "video_name": filename,
                 "video_mime": mime_type,
                 "analysis": result,
+                "gemini_file_name": analysis_data.get("gemini_file_name"),
+                "gemini_file_uri": analysis_data.get("gemini_file_uri"),
+                "gemini_file_mime": analysis_data.get("gemini_file_mime"),
                 "updated_at": datetime.now(timezone.utc).isoformat(),
             },
         )
@@ -305,7 +311,7 @@ async def process_audio(
         return
 
     extension = safe_extension(filename, ".ogg" if "ogg" in mime_type else ".mp3")
-    voice_path = user_folder(user.id) / f"voice{extension}"
+    voice_path = user_folder(user.id) / f"voice_{message.message_id}{extension}"
     status = await message.answer(
         "<b>🎧 OVOZ QABUL QILINDI</b>\n\n"
         "Ijroingni sahna emotsiyasi, ifoda, ritm va talaffuz bo‘yicha tekshiryapman.\n"
@@ -328,6 +334,8 @@ async def process_audio(
             session.get("video_mime"),
             mime_type,
             session.get("analysis"),
+            session.get("gemini_file_uri"),
+            session.get("gemini_file_mime"),
         )
         await status.edit_text("<b>✅ DUBLYAJ TAHLILI TAYYOR</b>\n\nQuyida ijroing bo‘yicha batafsil fikrlar.")
         await answer_long(message, result)
@@ -401,6 +409,8 @@ async def reset_handler(message: Message):
     previous = delete_session(user.id)
     if previous:
         remove_local_file(previous.get("video_path"))
+        if previous.get("gemini_file_name"):
+            await asyncio.to_thread(delete_remote_file, previous["gemini_file_name"])
         await message.answer("<b>🧹 SAHNA TOZALANDI</b>\n\nYangi anime videosini yuborishing mumkin.")
     else:
         await message.answer("<b>📭 FAOL SAHNA YO‘Q</b>\n\nTahlilni boshlash uchun anime videosini yubor.")
