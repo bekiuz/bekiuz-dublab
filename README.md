@@ -54,7 +54,6 @@ Ichidagi qiymatlarni o‘zingiznikiga almashtiring:
     GEMINI_API_KEY=Gemini_API_kalitingiz
     GEMINI_MODEL=gemini-3.8-flash
     DATA_DIR=data
-    MAX_MEDIA_MB=18
 
 Nano'da saqlash: CTRL + O, Enter, keyin CTRL + X.
 
@@ -91,9 +90,10 @@ Keyin:
 - /help — foydalanish tartibi
 - /reset — oldingi video sessiyasini tozalash
 
-## Fayl limitlari va maxfiylik
+## Fayl hajmi va maxfiylik
 
-- Telegram Bot API standart getFile orqali yuklab olish limiti 20 MB. Bot standart holatda 18 MB limit qo‘yadi.
+- Bot kodidagi avvalgi 18 MB ichki cheklov olib tashlandi.
+- Telegram standart Bot API serveri getFile orqali botlarga 20 MB gacha faylni yuklab beradi. 20 MB dan kattaroq fayllar uchun Telegram'ning o‘z Local Bot API Server'ini alohida ishga tushirish kerak bo‘ladi.
 - Sessiya videosi Termux ichidagi data/uploads/ papkasida saqlanadi.
 - Sessiya ma'lumotlari data/sessions.json faylida turadi.
 - data/ va .env GitHub’ga yuborilmaydi.
@@ -103,6 +103,7 @@ Keyin:
 ## Xatolar
 
 - BOT_TOKEN yoki GEMINI_API_KEY xatosi: .env ni tekshiring.
+- Fayl juda katta: standart Telegram serverida 20 MB dan kichikroq video/audio yuboring; cheksiz yuklab olish uchun Local Bot API Server alohida sozlanadi.
 - Timed out: qisqaroq video yuboring yoki internetni tekshiring.
 - API limit: AI Studio hisobingizdagi limit va model mavjudligini tekshiring.
 - Bot javob bermasa: Termux'da python bot.py jarayoni ishlayotganini tekshiring.
