@@ -87,8 +87,17 @@ async def _download_from_message(
     destination.parent.mkdir(parents=True, exist_ok=True)
     destination.unlink(missing_ok=True)
 
-    result = await _client.download_media(original, file=str(destination))
-    if not result or not destination.is_file() or destination.stat().st_size == 0:
+    # Telegram ruxsat bergan eng katta 512 KB bo‘laklardan foydalanamiz.
+    # Bu 128 KB standart bo‘laklarga nisbatan so‘rovlar sonini 4 baravar kamaytiradi.
+    dc_id, location = utils.get_input_location(original.media)
+    await _client.download_file(
+        location,
+        file=str(destination),
+        part_size_kb=512,
+        file_size=getattr(original, "file", None).size if getattr(original, "file", None) else None,
+        dc_id=dc_id,
+    )
+    if not destination.is_file() or destination.stat().st_size == 0:
         raise RuntimeError("MTProto asl xabardan media faylni yuklay olmadi.")
 
     return True
