@@ -1,4 +1,5 @@
 import asyncio
+import html
 import logging
 import mimetypes
 import shutil
@@ -6,9 +7,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from aiogram import Bot, Dispatcher, F
+from aiogram.client.default import DefaultBotProperties
 from aiogram.client.session.aiohttp import AiohttpSession
 from aiogram.client.telegram import TelegramAPIServer
-from aiogram.enums import ChatType
+from aiogram.enums import ChatType, ParseMode
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import Command, CommandStart
 from aiogram.types import Message
@@ -42,14 +44,21 @@ if TELEGRAM_API_BASE_URL:
         TELEGRAM_API_BASE_URL,
         is_local=TELEGRAM_LOCAL_MODE,
     )
-    bot = Bot(token=BOT_TOKEN, session=AiohttpSession(api=telegram_api))
+    bot = Bot(
+        token=BOT_TOKEN,
+        session=AiohttpSession(api=telegram_api),
+        default=DefaultBotProperties(parse_mode=ParseMode.HTML),
+    )
     logger.info(
         "Custom Telegram API server: %s (local_mode=%s)",
         TELEGRAM_API_BASE_URL,
         TELEGRAM_LOCAL_MODE,
     )
 else:
-    bot = Bot(token=BOT_TOKEN)
+    bot = Bot(
+        token=BOT_TOKEN,
+        default=DefaultBotProperties(parse_mode=ParseMode.HTML),
+    )
     logger.info("Telegram cloud Bot API ishlatilmoqda.")
 
 dp = Dispatcher()
@@ -76,10 +85,43 @@ def split_text(text: str, limit: int = 3900) -> list[str]:
     return [chunk for chunk in chunks if chunk]
 
 
-async def answer_long(message: Message, text: str) -> None:
-    for part in split_text(text):
-        await message.answer(part)
+def _is_heading(value: str) -> bool:
+    letters = [char for char in value if char.isalpha()]
+    if not letters or len(value) > 90:
+        return False
+    uppercase_ratio = sum(char.isupper() for char in letters) / len(letters)
+    return uppercase_ratio >= 0.7
 
+
+def format_ai_text(text: str) -> str:
+    """Style AI headings while escaping all generated text for Telegram HTML."""
+    rendered: list[str] = []
+    for raw_line in text.replace("**", "").splitlines():
+        line = raw_line.strip()
+        if not line:
+            rendered.append("")
+            continue
+        if line.startswith(("-", "•", "▪")):
+            content = line.lstrip("-•▪ ").strip()
+            rendered.append("• " + html.escape(content))
+            continue
+        if ":" in line:
+            heading, body = line.split(":", 1)
+            if _is_heading(heading.strip()):
+                rendered.append(
+                    f"<b>{html.escape(heading.strip())}:</b>{html.escape(body)}"
+                )
+                continue
+        if _is_heading(line) and len(line) <= 72:
+            rendered.append(f"<b>{html.escape(line)}</b>")
+        else:
+            rendered.append(html.escape(line))
+    return "\n".join(rendered).strip()
+
+
+async def answer_long(message: Message, text: str) -> None:
+    for part in split_text(text, limit=3700):
+        await message.answer(format_ai_text(part))
 
 async def download_to_path(
     message: Message,
@@ -164,19 +206,20 @@ async def process_video(
     file_size: int | None = None,
 ):
     if not private_chat_only(message):
-        await message.answer("Maxfiylik uchun botdan shaxsiy chatda foydalaning.")
+        await message.answer("<b>🔒 SHAXSIY CHAT</b>\n\nDubLab’dan xavfsiz foydalanish uchun botga shaxsiy chatda yozing.")
         return
 
     user = message.from_user
     if user is None:
-        await message.answer("Foydalanuvchini aniqlab bo‘lmadi.")
+        await message.answer("<b>⚠️ FOYDALANUVCHI ANIQLANMADI</b>\n\nQayta urinib ko‘ring.")
         return
 
     extension = safe_extension(filename, ".mp4")
     path = user_folder(user.id) / f"scene{extension}"
     status = await message.answer(
-        "🎬 Video qabul qilindi. Kadrlar, personaj emotsiyasi va videoning ichidagi "
-        "ovozni tahlil qilyapman..."
+        "<b>🎬 VIDEO QABUL QILINDI</b>\n\n"
+        "Faylni yuklayapman, keyin sahna va personaj emotsiyasini tahlil qilaman.\n"
+        "<i>Bu biroz vaqt olishi mumkin.</i>"
     )
 
     try:
@@ -196,21 +239,22 @@ async def process_video(
                 "updated_at": datetime.now(timezone.utc).isoformat(),
             },
         )
-        await status.edit_text("✅ Video tahlili tayyor. Natija:")
+        await status.edit_text("<b>✅ SAHNA TAHLILI TAYYOR</b>\n\nQuyida DubLab murabbiyining xulosasi.")
         await answer_long(message, result)
         await message.answer(
-            "🎙️ Endi xohlasang, o‘zing dublyaj qilgan ovozni alohida voice yoki audio "
-            "ko‘rinishida yubor. Uni shu video bilan solishtirib, baholayman.\n\n"
-            "Yoki videoning o‘zidagi ovoz tahlili bilan kifoyalanishing mumkin. "
-            "Yangi video yuborsang, oldingi sahna yangilanadi."
+            "<b>🎙️ KEYINGI QADAM — SENING IJROING</b>\n\n"
+            "O‘zing dublyaj qilgan ovozni voice yoki audio ko‘rinishida yubor. "
+            "Men uni shu sahna bilan solishtirib baholayman.\n\n"
+            "<i>Yangi video yuborsang, avvalgi sahna yangilanadi.</i>"
         )
     except ValueError as exc:
-        await status.edit_text(f"⚠️ {exc}")
+        await status.edit_text(f"<b>⚠️ TAHLILNI BAJARIB BO‘LMADI</b>\n\n{html.escape(str(exc))}")
     except Exception:
         logger.exception("Videoni tahlil qilishda xatolik")
         await status.edit_text(
-            "❌ Videoni tahlil qilib bo‘lmadi. Internet/API limiti yoki fayl formati "
-            "bilan muammo bo‘lishi mumkin. Birozdan keyin qayta urinib ko‘r."
+            "<b>❌ VIDEO TAHLILIDA XATOLIK</b>\n\n"
+            "Internet, AI API limiti yoki fayl formati bilan muammo bo‘lishi mumkin.\n"
+            "Birozdan keyin qayta urinib ko‘r."
         )
 
 
@@ -241,8 +285,9 @@ async def process_audio(
     extension = safe_extension(filename, ".ogg" if "ogg" in mime_type else ".mp3")
     voice_path = user_folder(user.id) / f"voice{extension}"
     status = await message.answer(
-        "🎧 Ovoz qabul qilindi. Uni videodagi vaziyat, emotsiya, ritm va talaffuz "
-        "bilan solishtiryapman..."
+        "<b>🎧 OVOZ QABUL QILINDI</b>\n\n"
+        "Ijroingni sahna emotsiyasi, ifoda, ritm va talaffuz bo‘yicha tekshiryapman.\n"
+        "<i>Natija tayyor bo‘lgach shu yerga yuboraman.</i>"
     )
 
     try:
@@ -255,19 +300,20 @@ async def process_audio(
             mime_type,
             session.get("analysis"),
         )
-        await status.edit_text("✅ Ovoz tahlili yakunlandi. Natija:")
+        await status.edit_text("<b>✅ DUBLYAJ TAHLILI TAYYOR</b>\n\nQuyida ijroing bo‘yicha batafsil fikrlar.")
         await answer_long(message, result)
         await message.answer(
-            "🔁 Yaxshilangan variantni yana yuborishing mumkin. Yangi video yubormaguningcha "
-            "shu sahna bilan qayta solishtiraman."
+            "<b>🔁 YANA BIR URINISH?</b>\n\n"
+            "Maslahatlarni sinab ko‘rib, yangi audio yubor. Uni shu sahna bilan yana solishtiraman."
         )
     except ValueError as exc:
-        await status.edit_text(f"⚠️ {exc}")
+        await status.edit_text(f"<b>⚠️ OVOZNI TEKSHIRIB BO‘LMADI</b>\n\n{html.escape(str(exc))}")
     except Exception:
         logger.exception("Ovoz tahlilida xatolik")
         await status.edit_text(
-            "❌ Ovozni tahlil qilib bo‘lmadi. Ovozli xabarni qayta yubor yoki "
-            "birozdan keyin urinib ko‘r."
+            "<b>❌ OVOZ TAHLILIDA XATOLIK</b>\n\n"
+            "Audio faylni o‘qib bo‘lmadi yoki AI xizmati vaqtincha javob bermadi.\n"
+            "Ovozli xabarni qayta yuborib ko‘r."
         )
     finally:
         voice_path.unlink(missing_ok=True)
@@ -276,31 +322,44 @@ async def process_audio(
 @dp.message(CommandStart())
 async def start_handler(message: Message):
     await message.answer(
-        "🎙️ Bekiuz DubLab ga xush kelibsan!\n\n"
-        "Men anime dublyaj ijrosini tahlil qiladigan AI murabbiyman.\n\n"
-        "1️⃣ Anime videosini yubor — sahna, personaj emotsiyasi va videodagi ovozni "
-        "tahlil qilaman.\n"
-        "2️⃣ Alohida ovozli xabar yubor — uni avvalgi video bilan solishtiraman.\n"
-        "3️⃣ Emotsiya mosligi, ovoz ifodasi, tezlik, pauza va talaffuz bo‘yicha "
-        "baholash hamda tavsiya olasan.\n\n"
-        "Buyruqlar: /help — yordam, /reset — joriy videoni almashtirish."
+        "<b>🎙️ BEKIUZ DUBLAB</b>\n"
+        "<i>Anime dublyaj uchun AI murabbiy</i>\n\n"
+        "Xush kelibsan! Men sahna emotsiyasini tahlil qilaman va dublyaj ijroingni "
+        "rivojlantirishga yordam beraman.\n\n"
+        "<b>QANDAY ISHLAYDI?</b>\n"
+        "🎬 <b>1. SAHNA TAHLILI</b> — anime videosini yubor. Men personaj, kayfiyat, "
+        "vaziyat va videodagi ovozni tahlil qilaman.\n\n"
+        "🎤 <b>2. OVOZINGNI YUBOR</b> — alohida voice yoki audio yubor.\n\n"
+        "📊 <b>3. BAHO VA MASLAHAT</b> — emotsiya, ifoda, ritm, pauza va talaffuz "
+        "bo‘yicha fikr hamda 100 ballik baho ol.\n\n"
+        "<b>BUYRUQLAR</b>\n"
+        "/help — foydalanish qo‘llanmasi\n"
+        "/reset — joriy sahnani almashtirish\n\n"
+        "<i>Avval anime videosini yuborishdan boshlaymiz. ✨</i>"
     )
 
 
 @dp.message(Command("help"))
 async def help_handler(message: Message):
     await message.answer(
-        "📘 Qanday foydalaniladi?\n\n"
-        "🎬 Video yubor: bot undagi personaj va vaziyatni ko‘rib, kerakli emotsiyani "
-        "va qanday gapirish kerakligini aytadi. Videodagi nutq eshitilsa, uning "
-        "sahna bilan mosligini ham baholaydi.\n\n"
-        "🎤 Keyin voice yoki audio yubor: bot alohida yozgan ovozingni shu video "
-        "bilan taqqoslaydi.\n\n"
-        "📊 Baholash: emotsiya, ovoz ifodasi, ritm/pauza, talaffuz va faqat "
-        "o‘lchash mumkin bo‘lsa sinxronlik.\n\n"
-        "📦 20 MB dan katta videolar uchun TELEGRAM_API_ID va TELEGRAM_API_HASH "
-        "sozlangan bo‘lishi kerak. MTProto ishlamasa, Telegram standart 20 MB "
-        "yuklab olish chegarasi amal qiladi."
+        "<b>📘 BEKIUZ DUBLAB — QO‘LLANMA</b>\n\n"
+        "<b>① VIDEO YUBOR</b>\n"
+        "Anime sahnasini video ko‘rinishida yubor. Men kadrlar, personaj emotsiyasi "
+        "va eshitiladigan nutqni tahlil qilaman.\n\n"
+        "<b>② OVOZINGNI YUBOR</b>\n"
+        "Video tahlilidan keyin o‘zing yozgan dublyajni voice yoki audio sifatida yubor.\n\n"
+        "<b>③ NATIJANI OL</b>\n"
+        "📊 Emotsiya mosligi\n"
+        "🎙️ Ovoz ifodasi va niyat\n"
+        "⏱️ Tezlik, ritm va pauzalar\n"
+        "🗣️ Talaffuz va tushunarlilik\n"
+        "🎬 Sinxronlik — faqat ishonchli o‘lchash mumkin bo‘lsa\n\n"
+        "<b>FOYDALI BUYRUQLAR</b>\n"
+        "/start — boshidan boshlash\n"
+        "/reset — oldingi video sessiyasini tozalash\n"
+        "/help — ushbu qo‘llanma\n\n"
+        "<i>Eslatma: katta videolarni yuklash MTProto ulanishiga bog‘liq. "
+        "Gemini va hosting limitlari ham amal qiladi.</i>"
     )
 
 
@@ -313,9 +372,9 @@ async def reset_handler(message: Message):
     previous = delete_session(user.id)
     if previous:
         remove_local_file(previous.get("video_path"))
-        await message.answer("🧹 Oldingi video sessiyasi tozalandi. Yangi video yubor.")
+        await message.answer("<b>🧹 SAHNA TOZALANDI</b>\n\nYangi anime videosini yuborishing mumkin.")
     else:
-        await message.answer("Hozircha faol video yo‘q. Yangi video yuborishing mumkin.")
+        await message.answer("<b>📭 FAOL SAHNA YO‘Q</b>\n\nTahlilni boshlash uchun anime videosini yubor.")
 
 
 @dp.message(F.video)
@@ -354,7 +413,9 @@ async def document_handler(message: Message):
         )
     else:
         await message.answer(
-            "Video yoki audio fayl yubor. Formatlar: MP4, MOV, WebM, MP3, OGG, WAV."
+            "<b>📎 FORMAT QO‘LLAB-QUVVATLANMAYDI</b>\n\n"
+            "Video: MP4, MOV, WebM, MKV, AVI\n"
+            "Audio: MP3, OGG, WAV, M4A, AAC, FLAC"
         )
 
 
@@ -383,8 +444,9 @@ async def audio_handler(message: Message):
 @dp.message(F.text)
 async def text_fallback(message: Message):
     await message.answer(
-        "Anime videosini yuborishdan boshlaymiz 🎬\n"
-        "Video tahlilidan keyin alohida ovozli xabar yuborishing mumkin."
+        "<b>🎬 AVVAL SAHNA, KEYIN OVOZ</b>\n\n"
+        "Anime videosini yubor. Tahlildan keyin dublyaj ovozingni alohida jo‘natishing mumkin.\n\n"
+        "/help — qo‘llanma"
     )
 
 
