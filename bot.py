@@ -151,8 +151,8 @@ async def download_to_path(
             logger.exception("MTProto orqali faylni yuklashda xatolik")
             if file_size and file_size > BOT_API_DOWNLOAD_LIMIT:
                 raise ValueError(
-                    "Katta fayl MTProto orqali yuklanmadi. TELEGRAM_API_ID/HASH "
-                    "va bot sessiyasi to‘g‘ri sozlanganini tekshiring."
+                    "Katta video Telegram serveridan MTProto orqali olinmadi. "
+                    "Videoni qayta yuborib ko‘r; muammo takrorlansa Live Console logini tekshiramiz."
                 ) from exc
             # Small files can still use the regular Bot API as a fallback.
 
