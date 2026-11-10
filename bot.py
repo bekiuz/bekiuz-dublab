@@ -239,6 +239,11 @@ async def process_video(
             message_id=message.message_id,
             chat_id=message.chat.id,
         )
+        await status.edit_text(
+            "<b>🧠 VIDEO YUKLANDI</b>\n\n"
+            "Gemini sahna va personaj emotsiyasini tahlil qilmoqda. "
+            "Xizmat band bo‘lsa, avtomatik qayta urinib ko‘raman."
+        )
         result = await asyncio.to_thread(analyze_video, str(path), mime_type)
         previous = get_session(user.id)
         if previous and previous.get("video_path") != str(path):
@@ -267,9 +272,9 @@ async def process_video(
     except Exception:
         logger.exception("Videoni tahlil qilishda xatolik")
         await status.edit_text(
-            "<b>❌ VIDEO TAHLILIDA XATOLIK</b>\n\n"
-            "Internet, AI API limiti yoki fayl formati bilan muammo bo‘lishi mumkin.\n"
-            "Birozdan keyin qayta urinib ko‘r."
+            "<b>⚠️ GEMINI TAHLILNI YAKUNLAY OLMADI</b>\n\n"
+            "Video muvaffaqiyatli yuklandi, ammo AI xizmati hozir javob bermadi. "
+            "Bir ozdan keyin /reset qilib videoni qayta yubor."
         )
 
 
