@@ -94,6 +94,8 @@ Server ishlashda davom etishi kerak. Bot ham shu qurilmada va shu fayl tizimida 
 
 `.env` faylida:
 
+    TELEGRAM_API_ID=your_telegram_api_id
+    TELEGRAM_API_HASH=your_telegram_api_hash
     TELEGRAM_API_BASE_URL=http://127.0.0.1:8081
     TELEGRAM_LOCAL_MODE=true
 
@@ -149,6 +151,48 @@ Rasmiy Telegram build generatorida Windows, Linux, macOS va BSD oilalari bor; An
 
 > Muhim: Local Bot API Telegram yuklab olish limitini olib tashlaydi, ammo bu Gemini API, telefon xotirasi, internet tezligi yoki modelning media cheklovlarini olib tashlamaydi.
 
+## Docker orqali doimiy cloud deploy
+
+Repo ichidagi `Dockerfile` bitta konteynerda ikkita jarayonni ishga tushiradi:
+- Telegram Local Bot API server (`--local` rejimi)
+- Bekiuz DubLab Python bot
+
+Local Bot API server va Python bot bir konteynerda bo‘lishi shart: Local API `getFile` javobida mutlaq server fayl yo‘lini beradi, bot esa aynan shu fayl tizimidan o‘qiydi. Docker image Telegram serverini alohida build bosqichida yig‘adi.
+
+### Northflank orqali GitHub'dan deploy
+
+1. Northflank'da GitHub repo `bekiuz/bekiuz-dublab` ni ulang.
+2. Combined Service yarating va build turi sifatida **Dockerfile** tanlang. Dockerfile yo‘li `/Dockerfile`, build context esa repo root bo‘lsin.
+3. Bu bot polling worker sifatida ishlaydi, shuning uchun **public port qo‘shmang**. Docker ichidagi Local Bot API faqat `127.0.0.1:8081` da tinglaydi.
+4. Service'ga persistent volume qo‘shib, container mount path'ni `/data` qiling. Kamida 1 GB dan boshlash mumkin; video hajmiga qarab ko‘proq joy kerak bo‘ladi. Service'ni bitta replica bilan ishlating.
+5. Quyidagi environment qiymatlarini Northflank Secrets/Variables bo‘limiga kiriting:
+
+       BOT_TOKEN                 BotFather tokeni
+       GEMINI_API_KEY            Gemini API kaliti
+       GEMINI_MODEL              gemini-3.8-flash
+       TELEGRAM_API_ID           my.telegram.org dan olingan API ID
+       TELEGRAM_API_HASH         my.telegram.org dan olingan API Hash
+       TELEGRAM_API_BASE_URL     http://127.0.0.1:8081
+       TELEGRAM_LOCAL_MODE       true
+       TELEGRAM_AUTO_LOGOUT      true
+       DATA_DIR                  /data
+
+6. Deploy qiling. Birinchi ishga tushishda Local Bot API tayyor bo‘lgach, `TELEGRAM_AUTO_LOGOUT=true` botni Telegram cloud API'dan Local API'ga bir marta ko‘chiradi. Belgisi `/data/.cloud-api-logged-out` faylida saqlanadi. Shu sababli `/data` volume'ni o‘chirmang.
+7. GitHub `main` branch'ga yangi commit tushganda Northflank ulangan service'ni qayta build/deploy qiladi.
+
+### Narx va doimiy ishlash bo‘yicha ogohlantirish
+
+Northflank'ning Developer Sandbox rejasi rasmiy pricing sahifasida doimiy ishlaydigan (sleep qilmaydigan) service va oyiga $20 gacha resurs deb ko‘rsatilgan. Lekin rasmiy billing hujjatida ish boshlash uchun to‘lov usuli talab qilinishi va Sandbox production ilovalari uchun mo‘ljallanmagani yozilgan. Persistent volume va tashqi trafik ham alohida xarajat keltirishi mumkin. Shuning uchun bu variantni bepul va cheksiz production hosting deb hisoblamang; to‘lov yoki karta so‘ralsa, billing shartlarini ota-ona yoki vasiy bilan birga ko‘rib chiqing.
+
+**Muhim:** Northflank'da 24/7 process ishlashi platforma uyquga ketmasligini anglatadi, ammo platforma nosozligi, limit tugashi, deploy paytidagi restart yoki billing cheklovi bo‘lmasligiga kafolat bermaydi.
+
+### Kerakli kalitlar
+
+- `BOT_TOKEN` — BotFather'dan.
+- `GEMINI_API_KEY` — Google AI Studio'dan.
+- `TELEGRAM_API_ID` va `TELEGRAM_API_HASH` — Telegram Developer portalidan.
+- Hech qaysi token yoki API kalitini GitHub repo'ga yozmang; faqat hosting Secrets bo‘limidan kiriting.
+
 ## 4. Windows / Linux orqali ishga tushirish
 
     python -m venv .venv
@@ -178,10 +222,11 @@ Keyin:
 
 ## Fayl hajmi va maxfiylik
 
-- Bot kodidagi avvalgi 18 MB ichki cheklov olib tashlandi.
-- Telegram standart Bot API serveri getFile orqali botlarga 20 MB gacha faylni yuklab beradi. 20 MB dan kattaroq fayllar uchun Telegram'ning o‘z Local Bot API Server'ini alohida ishga tushirish kerak bo‘ladi.
-- Sessiya videosi Termux ichidagi data/uploads/ papkasida saqlanadi.
-- Sessiya ma'lumotlari data/sessions.json faylida turadi.
+- Bot kodida ilova darajasidagi media hajmi cheklovi yo‘q.
+- Telegram cloud Bot API serveri orqali botlar 20 MB gacha faylni yuklab oladi. Local Bot API `--local` rejimida yuklab olish hajmi cheklanmaydi va server orqali 2000 MB gacha fayl yuklash mumkin. Gemini modelining o‘z media/API cheklovlari baribir amal qiladi.
+- Sessiya videosi `DATA_DIR/uploads/` papkasida saqlanadi.
+- Sessiya ma'lumotlari `DATA_DIR/sessions.json` faylida turadi.
+- Docker cloud deploy'da `DATA_DIR=/data` va `/data` persistent volume ishlatiladi.
 - data/ va .env GitHub’ga yuborilmaydi.
 - Video va audio tahlil uchun Google Gemini API'ga uzatiladi. Tahlil tugagach, bot Gemini'ga vaqtincha yuklangan fayllarni o‘chirishga urinadi. Maxfiy yoki shaxsiy videolarni yubormang.
 - /reset joriy sessiyadagi videoni o‘chiradi.
