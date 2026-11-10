@@ -175,28 +175,33 @@ def _generate_with_fallback(client: genai.Client, contents) -> str:
         return _output_text(response)
 
 
-def analyze_video(video_path: str, mime_type: str | None = None) -> str:
-    """Analyse the video visuals and its embedded soundtrack."""
+def analyze_video(video_path: str, mime_type: str | None = None) -> dict:
+    """Upload and analyse a scene once; retain its Gemini file for later voice attempts."""
     path = Path(video_path)
     guessed_mime = mime_type or mimetypes.guess_type(path.name)[0] or "video/mp4"
     client = _new_client()
     uploaded_files = []
+    keep_video = False
     try:
-        logger.info("Gemini video faylini qabul qildi; sahna tahlili boshlanmoqda.")
+        logger.info("Gemini video yuklandi; tezkor GenerateContent tahlili boshlanmoqda.")
         video = _upload(client, path, uploaded_files)
-        logger.info("Gemini video tayyor; Interactions so‘rovi yuborilmoqda.")
+        logger.info("Gemini video tayyor; GenerateContent so‘rovi yuborilmoqda.")
         video_part = types.Part.from_uri(
             file_uri=video.uri,
             mime_type=getattr(video, "mime_type", None) or guessed_mime,
         )
-        result = _generate_with_fallback(
-            client,
-            contents=[VIDEO_PROMPT, video_part],
-        )
+        result = _generate_with_fallback(client, contents=[VIDEO_PROMPT, video_part])
+        keep_video = True
         logger.info("Gemini sahna tahlilini muvaffaqiyatli yakunladi.")
-        return result
+        return {
+            "text": result,
+            "gemini_file_name": video.name,
+            "gemini_file_uri": video.uri,
+            "gemini_file_mime": getattr(video, "mime_type", None) or guessed_mime,
+        }
     finally:
-        _delete_uploaded_files(client, uploaded_files)
+        if not keep_video:
+            _delete_uploaded_files(client, uploaded_files)
         client.close()
 
 
@@ -206,6 +211,8 @@ def evaluate_voice(
     video_mime: str | None = None,
     voice_mime: str | None = None,
     scene_notes: str | None = None,
+    video_file_uri: str | None = None,
+    video_file_mime: str | None = None,
 ) -> str:
     """Compare a separate voice message with the previously uploaded video."""
     v_path = Path(video_path)
@@ -216,15 +223,22 @@ def evaluate_voice(
     client = _new_client()
     uploaded_files = []
     try:
-        video = _upload(client, v_path, uploaded_files)
+        if video_file_uri:
+            video_uri = video_file_uri
+            video_content_mime = video_file_mime or v_mime
+            logger.info("Saqlangan Gemini sahnasi qayta ishlatilmoqda; video qayta yuklanmaydi.")
+        else:
+            video = _upload(client, v_path, uploaded_files)
+            video_uri = video.uri
+            video_content_mime = getattr(video, "mime_type", None) or v_mime
         audio = _upload(client, a_path, uploaded_files)
         context = ""
         if scene_notes:
             context = "\n\nAvvalgi sahna tahlili (qo‘shimcha kontekst):\n" + scene_notes[:6000]
 
         video_part = types.Part.from_uri(
-            file_uri=video.uri,
-            mime_type=getattr(video, "mime_type", None) or v_mime,
+            file_uri=video_uri,
+            mime_type=video_content_mime,
         )
         audio_part = types.Part.from_uri(
             file_uri=audio.uri,
@@ -236,4 +250,17 @@ def evaluate_voice(
         )
     finally:
         _delete_uploaded_files(client, uploaded_files)
+        client.close()
+
+
+def delete_remote_file(file_name: str | None) -> None:
+    """Delete a retained Gemini scene file when a session is reset or replaced."""
+    if not file_name or not GEMINI_API_KEY:
+        return
+    client = _new_client()
+    try:
+        client.files.delete(name=file_name)
+    except Exception:
+        logger.warning("Gemini sahna faylini o‘chirish muvaffaqiyatsiz: %s", file_name)
+    finally:
         client.close()
