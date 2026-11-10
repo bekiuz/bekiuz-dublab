@@ -18,6 +18,6 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
       - name: Compile Python files
-        run: python -m compileall -q bot.py ai_service.py config.py session_store.py
+        run: python -m compileall -q bot.py ai_service.py config.py mtproto_download.py session_store.py
       - name: Check imports
-        run: python -c "import ai_service, config, session_store"
+        run: python -c "import ai_service, config, mtproto_download, session_store"
