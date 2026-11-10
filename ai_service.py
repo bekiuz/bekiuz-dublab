@@ -88,9 +88,21 @@ def _wait_until_ready(client: genai.Client, uploaded_file, timeout_seconds: int 
         current = client.files.get(name=current.name)
 
 
-def _upload(client: genai.Client, path: Path):
+def _upload(client: genai.Client, path: Path, uploaded_files: list) :
     uploaded = client.files.upload(file=str(path))
+    uploaded_files.append(uploaded)
     return _wait_until_ready(client, uploaded)
+
+
+def _delete_uploaded_files(client: genai.Client, uploaded_files: list) -> None:
+    for uploaded in uploaded_files:
+        name = getattr(uploaded, "name", None)
+        if not name:
+            continue
+        try:
+            client.files.delete(name=name)
+        except Exception:
+            logger.warning("Gemini'dagi vaqtinchalik faylni o‘chirish muvaffaqiyatsiz: %s", name)
 
 
 def _output_text(interaction) -> str:
@@ -105,8 +117,9 @@ def analyze_video(video_path: str, mime_type: str | None = None) -> str:
     path = Path(video_path)
     guessed_mime = mime_type or mimetypes.guess_type(path.name)[0] or "video/mp4"
     client = _new_client()
+    uploaded_files = []
     try:
-        video = _upload(client, path)
+        video = _upload(client, path, uploaded_files)
         interaction = client.interactions.create(
             model=GEMINI_MODEL,
             input=[
@@ -120,6 +133,7 @@ def analyze_video(video_path: str, mime_type: str | None = None) -> str:
         )
         return _output_text(interaction)
     finally:
+        _delete_uploaded_files(client, uploaded_files)
         client.close()
 
 
@@ -137,9 +151,10 @@ def evaluate_voice(
     a_mime = voice_mime or mimetypes.guess_type(a_path.name)[0] or "audio/ogg"
 
     client = _new_client()
+    uploaded_files = []
     try:
-        video = _upload(client, v_path)
-        audio = _upload(client, a_path)
+        video = _upload(client, v_path, uploaded_files)
+        audio = _upload(client, a_path, uploaded_files)
         context = ""
         if scene_notes:
             context = "\n\nAvvalgi sahna tahlili (qo‘shimcha kontekst):\n" + scene_notes[:6000]
@@ -162,4 +177,5 @@ def evaluate_voice(
         )
         return _output_text(interaction)
     finally:
+        _delete_uploaded_files(client, uploaded_files)
         client.close()
