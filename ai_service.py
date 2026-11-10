@@ -142,7 +142,7 @@ def _output_text(response) -> str:
 
 
 def _generate_with_fallback(client: genai.Client, contents) -> str:
-    """Use GenerateContent; switch to a lighter stable model only on overload."""
+    """Use fast Flash-Lite first, then a stronger stable model only on overload."""
     try:
         response = client.models.generate_content(
             model="gemini-3.5-flash-lite",
@@ -161,9 +161,6 @@ def _generate_with_fallback(client: genai.Client, contents) -> str:
             raise
 
         fallback_model = "gemini-3.8-flash"
-        if fallback_model == GEMINI_MODEL:
-            raise
-
         logger.warning(
             "Asosiy Gemini modeli band (503); zaxira modelga o‘tilmoqda: %s",
             fallback_model,
