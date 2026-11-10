@@ -3,7 +3,6 @@ import logging
 from pathlib import Path
 
 from telethon import TelegramClient, utils
-from telethon.errors import RPCError
 
 from config import BOT_TOKEN, DATA_DIR, TELEGRAM_API_HASH, TELEGRAM_API_ID
 
@@ -142,9 +141,9 @@ async def download_bot_file(
                         destination.stat().st_size,
                     )
                     return True
-            except RPCError:
+            except Exception:
                 logger.exception(
-                    "MTProto messages.getMessages/download_media muvaffaqiyatsiz "
+                    "MTProto original message download failed "
                     "(chat_id=%s, message_id=%s).",
                     chat_id,
                     message_id,
