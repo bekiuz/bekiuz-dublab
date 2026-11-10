@@ -63,6 +63,59 @@ Botni ishga tushirish:
 
 Termux’da ekran o‘chganda ish to‘xtab qolmasligi uchun Termux wake lock funksiyasidan foydalanish mumkin. Android batareya optimizatsiyasi baribir jarayonni to‘xtatishi mumkin; telefon doimiy hosting kabi kafolat bermaydi.
 
+## Telegram Local Bot API Server (fayl hajmi cheklovini olib tashlash)
+
+Local Bot API — Telegram'ning rasmiy ochiq kodli serveri. `--local` rejimida fayllarni yuklab olish hajmi cheklanmaydi, server orqali yuklash esa 2000 MB gacha bo‘ladi. Bu Telegram cloud API'dagi 20 MB yuklab olish limitidan farq qiladi.
+
+### Kerak bo‘ladigan ma'lumotlar
+
+- Telegram bot tokeni — BotFather'dan.
+- `api_id` va `api_hash` — Telegram Developer portalidan, shaxsiy Telegram akkauntingiz bilan olinadi. Bu qiymatlarni hech kimga yubormang.
+- Local Bot API server binari — `telegram-bot-api`.
+
+### Local serverni ishga tushirish
+
+Telegram'ning rasmiy build yo‘riqnomasi C++17 compiler, OpenSSL, zlib, gperf va CMake talab qiladi. Linux uchun rasmiy umumiy build buyruqlari:
+
+    git clone --recursive https://github.com/tdlib/telegram-bot-api.git
+    cd telegram-bot-api
+    mkdir build
+    cd build
+    cmake -DCMAKE_BUILD_TYPE=Release ..
+    cmake --build . --target install
+
+Build tugagach, `telegram-bot-api` binari o‘rnatilgan bo‘ladi. Serverni o‘z API ma'lumotlaringiz bilan boshlang:
+
+    telegram-bot-api --api-id=YOUR_API_ID --api-hash=YOUR_API_HASH --local --http-port=8081
+
+Server ishlashda davom etishi kerak. Bot ham shu qurilmada va shu fayl tizimida ishlashi zarur: Local Bot API `getFile` javobida faylning serverdagi mutlaq yo‘lini qaytaradi.
+
+### Botni Local API'ga ulash
+
+`.env` faylida:
+
+    TELEGRAM_API_BASE_URL=http://127.0.0.1:8081
+    TELEGRAM_LOCAL_MODE=true
+
+1. Avval yuqoridagi Local Bot API serverini ishga tushiring.
+2. Boshqa Termux oynasida loyiha papkasiga kirib, virtual muhitni faollashtiring.
+3. Quyidagini bajaring:
+
+       python switch_to_local.py
+
+4. Skript server portini tekshiradi va cloud Bot API'dan chiqishdan oldin `LOGOUT` tasdig‘ini so‘raydi. Faqat Local API tayyor bo‘lsa tasdiqlang.
+5. Keyin botni ishga tushiring:
+
+       python bot.py
+
+Telegram cloud API'dan Local API'ga o‘tishdan oldin `logOut` chaqirilishi shart. Cloud API'ga qayta kirishda Telegram 10 daqiqa kutishni talab qiladi.
+
+### Termux / Android haqida
+
+Rasmiy Telegram build generatorida Windows, Linux, macOS va BSD oilalari bor; Android/Termux alohida build target sifatida ko‘rsatilmagan. Shuning uchun `telegram-bot-api` serverini Termux'da kompilyatsiya qilishni hozircha kafolatlab bo‘lmaydi. Python bot kodi esa Local API bilan ishlashga tayyor. Agar Termux'da server binarini build qilib bo‘lmasa, Local API va Python botni bir xil Linux qurilmada ishga tushirish kerak bo‘ladi — alohida qurilmalarda absolute file path mos kelmaydi.
+
+> Muhim: Local Bot API Telegram yuklab olish limitini olib tashlaydi, ammo bu Gemini API, telefon xotirasi, internet tezligi yoki modelning media cheklovlarini olib tashlamaydi.
+
 ## 4. Windows / Linux orqali ishga tushirish
 
     python -m venv .venv
@@ -103,7 +156,7 @@ Keyin:
 ## Xatolar
 
 - BOT_TOKEN yoki GEMINI_API_KEY xatosi: .env ni tekshiring.
-- Fayl juda katta: standart Telegram serverida 20 MB dan kichikroq video/audio yuboring; cheksiz yuklab olish uchun Local Bot API Server alohida sozlanadi.
+- Fayl juda katta: Local API sozlanmagan bo‘lsa, Telegram cloud serverining 20 MB yuklab olish limiti amal qiladi. Local API sozlangan bo‘lsa server va bot bir qurilmada ishlayotganini tekshiring.
 - Timed out: qisqaroq video yuboring yoki internetni tekshiring.
 - API limit: AI Studio hisobingizdagi limit va model mavjudligini tekshiring.
 - Bot javob bermasa: Termux'da python bot.py jarayoni ishlayotganini tekshiring.
