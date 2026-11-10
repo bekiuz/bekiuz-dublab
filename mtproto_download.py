@@ -61,6 +61,7 @@ async def _download_from_message(
     message_id: int,
     chat_id: int,
     destination: Path,
+    file_size: int | None = None,
 ) -> bool:
     """Fetch the original incoming message by ID, then download its media.
 
@@ -89,12 +90,15 @@ async def _download_from_message(
 
     # Telegram ruxsat bergan eng katta 512 KB bo‘laklardan foydalanamiz.
     # Bu 128 KB standart bo‘laklarga nisbatan so‘rovlar sonini 4 baravar kamaytiradi.
-    dc_id, location = utils.get_input_location(original.media)
+    media = getattr(original, "document", None) or getattr(original, "photo", None)
+    if media is None:
+        raise RuntimeError("Telegram xabaridagi video/audio fayl turi aniqlanmadi.")
+    dc_id, location = utils.get_input_location(media)
     await _client.download_file(
         location,
         file=str(destination),
         part_size_kb=512,
-        file_size=getattr(original, "file", None).size if getattr(original, "file", None) else None,
+        file_size=file_size,
         dc_id=dc_id,
     )
     if not destination.is_file() or destination.stat().st_size == 0:
@@ -144,7 +148,7 @@ async def download_bot_file(
     async with _download_lock:
         if message_id is not None and chat_id is not None:
             try:
-                if await _download_from_message(message_id, chat_id, destination):
+                if await _download_from_message(message_id, chat_id, destination, file_size):
                     logger.info(
                         "Media asl xabar orqali MTProto'dan yuklandi (%s bytes).",
                         destination.stat().st_size,
