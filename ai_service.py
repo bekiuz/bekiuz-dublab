@@ -134,11 +134,45 @@ def _delete_uploaded_files(client: genai.Client, uploaded_files: list) -> None:
             logger.warning("Gemini'dagi vaqtinchalik faylni o‘chirish muvaffaqiyatsiz: %s", name)
 
 
-def _output_text(interaction) -> str:
-    text = getattr(interaction, "output_text", None)
+def _output_text(response) -> str:
+    text = getattr(response, "text", None)
     if text and text.strip():
         return text.strip()
     raise RuntimeError("AI bo‘sh javob qaytardi. Qayta urinib ko‘ring.")
+
+
+def _generate_with_fallback(client: genai.Client, contents) -> str:
+    """Use GenerateContent; switch to a lighter stable model only on overload."""
+    try:
+        response = client.models.generate_content(
+            model=GEMINI_MODEL,
+            contents=contents,
+        )
+        return _output_text(response)
+    except Exception as exc:
+        status_code = getattr(exc, "code", None)
+        is_overloaded = (
+            status_code == 503
+            or "503" in str(exc)
+            or "high demand" in str(exc).lower()
+            or "service_unavailable" in str(exc).lower()
+        )
+        if not is_overloaded:
+            raise
+
+        fallback_model = "gemini-3.5-flash-lite"
+        if fallback_model == GEMINI_MODEL:
+            raise
+
+        logger.warning(
+            "Asosiy Gemini modeli band (503); zaxira modelga o‘tilmoqda: %s",
+            fallback_model,
+        )
+        response = client.models.generate_content(
+            model=fallback_model,
+            contents=contents,
+        )
+        return _output_text(response)
 
 
 def analyze_video(video_path: str, mime_type: str | None = None) -> str:
@@ -151,18 +185,14 @@ def analyze_video(video_path: str, mime_type: str | None = None) -> str:
         logger.info("Gemini video faylini qabul qildi; sahna tahlili boshlanmoqda.")
         video = _upload(client, path, uploaded_files)
         logger.info("Gemini video tayyor; Interactions so‘rovi yuborilmoqda.")
-        interaction = client.interactions.create(
-            model=GEMINI_MODEL,
-            input=[
-                {"type": "text", "text": VIDEO_PROMPT},
-                {
-                    "type": "video",
-                    "uri": video.uri,
-                    "mime_type": getattr(video, "mime_type", None) or guessed_mime,
-                },
-            ],
+        video_part = types.Part.from_uri(
+            file_uri=video.uri,
+            mime_type=getattr(video, "mime_type", None) or guessed_mime,
         )
-        result = _output_text(interaction)
+        result = _generate_with_fallback(
+            client,
+            contents=[VIDEO_PROMPT, video_part],
+        )
         logger.info("Gemini sahna tahlilini muvaffaqiyatli yakunladi.")
         return result
     finally:
@@ -192,23 +222,18 @@ def evaluate_voice(
         if scene_notes:
             context = "\n\nAvvalgi sahna tahlili (qo‘shimcha kontekst):\n" + scene_notes[:6000]
 
-        interaction = client.interactions.create(
-            model=GEMINI_MODEL,
-            input=[
-                {"type": "text", "text": VOICE_COMPARE_PROMPT + context},
-                {
-                    "type": "video",
-                    "uri": video.uri,
-                    "mime_type": getattr(video, "mime_type", None) or v_mime,
-                },
-                {
-                    "type": "audio",
-                    "uri": audio.uri,
-                    "mime_type": getattr(audio, "mime_type", None) or a_mime,
-                },
-            ],
+        video_part = types.Part.from_uri(
+            file_uri=video.uri,
+            mime_type=getattr(video, "mime_type", None) or v_mime,
         )
-        return _output_text(interaction)
+        audio_part = types.Part.from_uri(
+            file_uri=audio.uri,
+            mime_type=getattr(audio, "mime_type", None) or a_mime,
+        )
+        return _generate_with_fallback(
+            client,
+            contents=[VOICE_COMPARE_PROMPT + context, video_part, audio_part],
+        )
     finally:
         _delete_uploaded_files(client, uploaded_files)
         client.close()
