@@ -3,6 +3,7 @@ import html
 import logging
 import mimetypes
 import shutil
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -232,6 +233,7 @@ async def process_video(
     )
 
     try:
+        download_started = time.monotonic()
         await download_to_path(
             message,
             file_id,
@@ -240,12 +242,15 @@ async def process_video(
             message_id=message.message_id,
             chat_id=message.chat.id,
         )
+        logger.info("Telegram video yuklandi: %.1f soniya", time.monotonic() - download_started)
         await status.edit_text(
             "<b>🧠 VIDEO YUKLANDI</b>\n\n"
             "Gemini sahna va personaj emotsiyasini tahlil qilmoqda. "
             "Xizmat band bo‘lsa, avtomatik qayta urinib ko‘raman."
         )
+        analysis_started = time.monotonic()
         analysis_data = await asyncio.to_thread(analyze_video, str(path), mime_type)
+        logger.info("Gemini sahna tahlili tugadi: %.1f soniya", time.monotonic() - analysis_started)
         result = analysis_data["text"]
         previous = get_session(user.id)
         if previous:
