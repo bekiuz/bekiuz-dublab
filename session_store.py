@@ -47,6 +47,18 @@ def delete_session(user_id: int) -> dict[str, Any] | None:
     return previous
 
 
+def delete_session_if_matches(user_id: int, expected_video_path: str) -> dict[str, Any] | None:
+    """Delete a session only when it still points to the scene being evaluated."""
+    data = _read_all()
+    key = str(user_id)
+    current = data.get(key)
+    if not current or current.get("video_path") != expected_video_path:
+        return None
+    previous = data.pop(key)
+    _write_all(data)
+    return previous
+
+
 def remove_local_file(path_value: str | None) -> None:
     if not path_value:
         return
