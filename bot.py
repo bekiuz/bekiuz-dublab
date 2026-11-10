@@ -368,7 +368,7 @@ async def help_handler(message: Message):
 async def reset_handler(message: Message):
     user = message.from_user
     if user is None:
-        await message.answer("Foydalanuvchini aniqlab bo‘lmadi.")
+        await message.answer("<b>⚠️ FOYDALANUVCHI ANIQLANMADI</b>\n\nQayta urinib ko‘r.")
         return
     previous = delete_session(user.id)
     if previous:
