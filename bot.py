@@ -6,17 +6,12 @@ from pathlib import Path
 
 from aiogram import Bot, Dispatcher, F
 from aiogram.enums import ChatType
+from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import Command, CommandStart
 from aiogram.types import Message
 
 from ai_service import analyze_video, evaluate_voice
-from config import (
-    BOT_TOKEN,
-    MAX_MEDIA_BYTES,
-    MAX_MEDIA_MB,
-    UPLOADS_DIR,
-    validate_config,
-)
+from config import BOT_TOKEN, UPLOADS_DIR, validate_config
 from session_store import delete_session, get_session, remove_local_file, save_session
 
 logging.basicConfig(
@@ -56,12 +51,17 @@ async def answer_long(message: Message, text: str) -> None:
 
 
 async def download_to_path(message: Message, file_id: str, destination: Path):
-    telegram_file = await bot.get_file(file_id)
-    if telegram_file.file_size and telegram_file.file_size > MAX_MEDIA_BYTES:
-        raise ValueError(
-            f"Fayl juda katta. Telegram orqali hozircha {MAX_MEDIA_MB} MB gacha bo‘lgan "
-            "video/audio yuboring."
-        )
+    try:
+        telegram_file = await bot.get_file(file_id)
+    except TelegramBadRequest as exc:
+        if "file is too big" in str(exc).lower():
+            raise ValueError(
+                "Telegram standart Bot API 20 MB dan katta faylni botga yuklab "
+                "bermaydi. Botdagi 18 MB ichki cheklov olib tashlangan; kattaroq "
+                "fayllar uchun alohida Local Bot API Server kerak bo‘ladi."
+            ) from exc
+        raise
+
     if not telegram_file.file_path:
         raise RuntimeError("Telegram fayl manzilini qaytarmadi.")
 
@@ -69,9 +69,6 @@ async def download_to_path(message: Message, file_id: str, destination: Path):
     await bot.download_file(telegram_file.file_path, destination=destination)
     if not destination.exists() or destination.stat().st_size == 0:
         raise RuntimeError("Fayl yuklab olinmadi. Qayta yuborib ko‘ring.")
-    if destination.stat().st_size > MAX_MEDIA_BYTES:
-        destination.unlink(missing_ok=True)
-        raise ValueError(f"Fayl {MAX_MEDIA_MB} MB limitidan katta.")
 
 
 def user_folder(user_id: int) -> Path:
@@ -218,8 +215,8 @@ async def help_handler(message: Message):
         "bilan taqqoslaydi.\n\n"
         "📊 Baholash: emotsiya, ovoz ifodasi, ritm/pauza, talaffuz va faqat "
         "o‘lchash mumkin bo‘lsa sinxronlik.\n\n"
-        f"📦 Hozircha Telegram orqali {MAX_MEDIA_MB} MB gacha media yubor. "
-        "Botdan shaxsiy chatda foydalan."
+        "📦 Botda alohida 18 MB cheklov yo‘q. Telegram standart serverining "
+        "20 MB yuklab olish chegarasi amal qiladi. Botdan shaxsiy chatda foydalan."
     )
 
 
