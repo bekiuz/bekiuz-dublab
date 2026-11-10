@@ -128,12 +128,20 @@ async def download_to_path(
     file_id: str,
     destination: Path,
     file_size: int | None = None,
+    message_id: int | None = None,
+    chat_id: int | None = None,
 ):
     destination.parent.mkdir(parents=True, exist_ok=True)
 
     if not TELEGRAM_LOCAL_MODE and is_mtproto_ready():
         try:
-            await download_bot_file(file_id, destination, file_size=file_size)
+            await download_bot_file(
+                file_id,
+                destination,
+                file_size=file_size,
+                message_id=message_id,
+                chat_id=chat_id,
+            )
             logger.info(
                 "Media MTProto orqali yuklandi (%s bytes).",
                 destination.stat().st_size,
@@ -223,7 +231,14 @@ async def process_video(
     )
 
     try:
-        await download_to_path(message, file_id, path, file_size=file_size)
+        await download_to_path(
+            message,
+            file_id,
+            path,
+            file_size=file_size,
+            message_id=message.message_id,
+            chat_id=message.chat.id,
+        )
         result = await asyncio.to_thread(analyze_video, str(path), mime_type)
         previous = get_session(user.id)
         if previous and previous.get("video_path") != str(path):
@@ -292,7 +307,14 @@ async def process_audio(
     )
 
     try:
-        await download_to_path(message, file_id, voice_path, file_size=file_size)
+        await download_to_path(
+            message,
+            file_id,
+            voice_path,
+            file_size=file_size,
+            message_id=message.message_id,
+            chat_id=message.chat.id,
+        )
         result = await asyncio.to_thread(
             evaluate_voice,
             session["video_path"],
