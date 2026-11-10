@@ -129,6 +129,7 @@ async def _download_from_legacy_file_id(
         file=str(destination),
         dc_id=dc_id,
         file_size=file_size if file_size and file_size > 0 else None,
+        part_size_kb=512,
     )
 
     return destination.is_file() and destination.stat().st_size > 0
