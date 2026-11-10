@@ -6,7 +6,7 @@ from pathlib import Path
 from google import genai
 from google.genai import types
 
-from config import GEMINI_API_KEY, GEMINI_MODEL
+from config import GEMINI_API_KEY
 
 logger = logging.getLogger(__name__)
 
@@ -87,9 +87,9 @@ def _new_client() -> genai.Client:
         api_key=GEMINI_API_KEY,
         http_options=types.HttpOptions(
             retry_options=types.HttpRetryOptions(
-                attempts=3,
-                initial_delay=2.0,
-                max_delay=12.0,
+                attempts=2,
+                initial_delay=1.0,
+                max_delay=4.0,
                 exp_base=2.0,
                 jitter=0.3,
                 http_status_codes=[500, 502, 503, 504],
@@ -113,7 +113,7 @@ def _wait_until_ready(client: genai.Client, uploaded_file, timeout_seconds: int 
         if time.monotonic() >= deadline:
             raise TimeoutError("Media faylni tayyorlash vaqti tugadi. Qisqaroq video yuboring.")
 
-        time.sleep(2)
+        time.sleep(1)
         current = client.files.get(name=current.name)
 
 
@@ -145,7 +145,7 @@ def _generate_with_fallback(client: genai.Client, contents) -> str:
     """Use GenerateContent; switch to a lighter stable model only on overload."""
     try:
         response = client.models.generate_content(
-            model=GEMINI_MODEL,
+            model="gemini-3.5-flash-lite",
             contents=contents,
         )
         return _output_text(response)
@@ -160,7 +160,7 @@ def _generate_with_fallback(client: genai.Client, contents) -> str:
         if not is_overloaded:
             raise
 
-        fallback_model = "gemini-3.5-flash-lite"
+        fallback_model = "gemini-3.8-flash"
         if fallback_model == GEMINI_MODEL:
             raise
 
