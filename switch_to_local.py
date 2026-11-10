@@ -1,3 +1,4 @@
+import argparse
 import asyncio
 import os
 import socket
@@ -43,7 +44,17 @@ async def main() -> None:
     print("Local Bot API server porti javob beryapti.")
     print("Diqqat: keyingi qadam botni Telegram standart cloud API'dan chiqaradi.")
     print("Buni faqat Local Bot API serverni ishlatishga tayyor bo‘lsangiz bajaring.")
-    confirmation = input("Davom etish uchun LOGOUT deb yozing: ").strip()
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--yes",
+        action="store_true",
+        help="LOGOUT tasdig‘ini avtomatik berish (faqat server tayyor bo‘lganda).",
+    )
+    args = parser.parse_args()
+    confirmation = "LOGOUT" if args.yes else input(
+        "Davom etish uchun LOGOUT deb yozing: "
+    ).strip()
     if confirmation != "LOGOUT":
         print("Bekor qilindi. Bot cloud API'da qoladi.")
         return
