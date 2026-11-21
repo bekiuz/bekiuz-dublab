@@ -326,7 +326,6 @@ async def show_studio_line(message: Message, user_id: int) -> None:
     total = len(dialogue)
     start = _format_timestamp(float(line["start"]))
     end = _format_timestamp(float(line["end"]))
-    original = html.escape(line.get("original_text") or "Aniqlanmadi")
     dub_text = html.escape(line.get("dub_text") or "")
     speaker = html.escape(line.get("speaker") or "Personaj")
     emotion = html.escape(line.get("emotion") or "aniqlanmagan")
@@ -337,8 +336,7 @@ async def show_studio_line(message: Message, user_id: int) -> None:
         f"<b>🎬 AI DUBLYAJ — {index + 1}/{total}</b>\n\n"
         f"<b>👤 PERSONAJ:</b> {speaker}\n"
         f"<b>⏱ VAQT:</b> {start} — {end}\n\n"
-        f"<b>🌐 ORIGINAL:</b> {original}\n"
-        f"<b>🎙 AYTISH KERAK:</b> {dub_text}\n\n"
+        f"<b>🇺🇿 O‘ZBEKCHA REPLIKA:</b> {dub_text}\n\n"
         f"<b>🎭 EMOTSIYA:</b> {emotion}\n"
         f"<b>🔥 EMOTSIYA KUCHI:</b> {intensity}/10\n"
         f"<b>🎧 OVOZ KO‘RSATMASI:</b> {delivery}\n\n"
@@ -366,7 +364,7 @@ async def process_studio_video(
     )
     status = await message.answer(
         "<b>🎬 AI DUBLYAJ STUDIO</b>\n\n"
-        "Videoni yuklayapman. Keyin barcha dialoglarni vaqt va emotsiya bo‘yicha ajrataman."
+        "Videoni yuklayapman. Manba tili qanday bo‘lishidan qat’i nazar, dialoglarni faqat o‘zbekchaga tarjima qilib, vaqt va emotsiya bo‘yicha ajrataman."
     )
     try:
         await download_to_path(
@@ -405,7 +403,7 @@ async def process_studio_video(
         save_studio_session(user.id, session)
         await status.edit_text(
             f"<b>✅ TAHLIL TAYYOR</b>\n\n"
-            f"🌐 Video tili: {html.escape(session['video_language'])}\n"
+            f"🇺🇿 Natija: faqat o‘zbekcha replikalar\n"
             f"🗣 Replikalar: {len(dialogue)} ta\n\n"
             "Endi har bir replikani bittadan yozib boramiz."
         )
