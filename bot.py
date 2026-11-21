@@ -334,14 +334,14 @@ async def show_studio_line(message: Message, user_id: int) -> None:
     intensity = int(line.get("intensity", 5))
 
     await message.answer(
-        f"<b>🎬 AI DUBLYAJ — {index + 1}/{total}</b>\\n\\n"
-        f"<b>👤 PERSONAJ:</b> {speaker}\\n"
-        f"<b>⏱ VAQT:</b> {start} — {end}\\n\\n"
-        f"<b>🌐 ORIGINAL:</b> {original}\\n"
-        f"<b>🎙 AYTISH KERAK:</b> {dub_text}\\n\\n"
-        f"<b>🎭 EMOTSIYA:</b> {emotion}\\n"
-        f"<b>🔥 EMOTSIYA KUCHI:</b> {intensity}/10\\n"
-        f"<b>🎧 OVOZ KO‘RSATMASI:</b> {delivery}\\n\\n"
+        f"<b>🎬 AI DUBLYAJ — {index + 1}/{total}</b>\n\n"
+        f"<b>👤 PERSONAJ:</b> {speaker}\n"
+        f"<b>⏱ VAQT:</b> {start} — {end}\n\n"
+        f"<b>🌐 ORIGINAL:</b> {original}\n"
+        f"<b>🎙 AYTISH KERAK:</b> {dub_text}\n\n"
+        f"<b>🎭 EMOTSIYA:</b> {emotion}\n"
+        f"<b>🔥 EMOTSIYA KUCHI:</b> {intensity}/10\n"
+        f"<b>🎧 OVOZ KO‘RSATMASI:</b> {delivery}\n\n"
         "<i>Faqat shu replikani alohida voice yoki audio qilib yubor. "
         "Ovoz qabul qilinsa, keyingi replika avtomatik chiqadi.</i>"
     )
@@ -365,7 +365,7 @@ async def process_studio_video(
         f"studio_scene_{message.message_id}{safe_extension(filename, '.mp4')}"
     )
     status = await message.answer(
-        "<b>🎬 AI DUBLYAJ STUDIO</b>\\n\\n"
+        "<b>🎬 AI DUBLYAJ STUDIO</b>\n\n"
         "Videoni yuklayapman. Keyin barcha dialoglarni vaqt va emotsiya bo‘yicha ajrataman."
     )
     try:
@@ -378,7 +378,7 @@ async def process_studio_video(
             chat_id=message.chat.id,
         )
         await status.edit_text(
-            "<b>🧠 VIDEO TAHLIL QILINYAPTI</b>\\n\\n"
+            "<b>🧠 VIDEO TAHLIL QILINYAPTI</b>\n\n"
             "AI personajlarni, gaplarni, vaqtlarini va har bir replikaning emotsiyasini aniqlayapti. "
             "Video uzunligiga qarab biroz vaqt olishi mumkin."
         )
@@ -404,13 +404,13 @@ async def process_studio_video(
         }
         save_studio_session(user.id, session)
         await status.edit_text(
-            f"<b>✅ TAHLIL TAYYOR</b>\\n\\n"
-            f"🌐 Video tili: {html.escape(session['video_language'])}\\n"
-            f"🗣 Replikalar: {len(dialogue)} ta\\n\\n"
+            f"<b>✅ TAHLIL TAYYOR</b>\n\n"
+            f"🌐 Video tili: {html.escape(session['video_language'])}\n"
+            f"🗣 Replikalar: {len(dialogue)} ta\n\n"
             "Endi har bir replikani bittadan yozib boramiz."
         )
         await message.answer(
-            "<b>ℹ️ OVOZ YO‘LI</b>\\n"
+            "<b>ℹ️ OVOZ YO‘LI</b>\n"
             "Original dialog o‘rniga sizning ovozingiz qo‘yiladi. Ushbu ilk versiyada "
             "original audio to‘liq o‘chiriladi, shu sabab fon musiqasi va effektlar ham saqlanmaydi. "
             "Ularni alohida ajratib saqlash keyingi bosqichda qo‘shiladi."
@@ -418,12 +418,12 @@ async def process_studio_video(
         await show_studio_line(message, user.id)
     except ValueError as exc:
         path.unlink(missing_ok=True)
-        await status.edit_text(f"<b>⚠️ TAHLILNI BAJARIB BO‘LMADI</b>\\n\\n{html.escape(str(exc))}")
+        await status.edit_text(f"<b>⚠️ TAHLILNI BAJARIB BO‘LMADI</b>\n\n{html.escape(str(exc))}")
     except Exception:
         logger.exception("AI Dublyaj Studio video tahlilida xatolik")
         path.unlink(missing_ok=True)
         await status.edit_text(
-            "<b>❌ VIDEO TAHLILIDA XATOLIK</b>\\n\\n"
+            "<b>❌ VIDEO TAHLILIDA XATOLIK</b>\n\n"
             "Videoni tahlil qilishda muammo bo‘ldi. /studio orqali qayta boshlang."
         )
 
@@ -456,7 +456,7 @@ async def process_studio_audio(
     extension = safe_extension(filename, ".ogg" if "ogg" in mime_type else ".mp3")
     voice_path = user_folder(user.id) / f"studio_voice_{message.message_id}{extension}"
     status = await message.answer(
-        f"<b>🎧 {index + 1}/{len(dialogue)} — OVOZ QABUL QILINDI</b>\\n\\n"
+        f"<b>🎧 {index + 1}/{len(dialogue)} — OVOZ QABUL QILINDI</b>\n\n"
         "Ovoz faylini saqlayapman va kerakli vaqtga joylash uchun tayyorlayapman."
     )
     saved = False
@@ -485,7 +485,7 @@ async def process_studio_audio(
         save_studio_session(user.id, session)
         saved = True
         await status.edit_text(
-            f"<b>✅ {index + 1}/{len(dialogue)} — SAQLANDI</b>\\n\\n"
+            f"<b>✅ {index + 1}/{len(dialogue)} — SAQLANDI</b>\n\n"
             "Ovozing shu replika boshlanadigan vaqtga joylanadi."
         )
 
@@ -496,11 +496,11 @@ async def process_studio_audio(
         else:
             await show_studio_line(message, user.id)
     except ValueError as exc:
-        await status.edit_text(f"<b>⚠️ OVOZNI QABUL QILIB BO‘LMADI</b>\\n\\n{html.escape(str(exc))}")
+        await status.edit_text(f"<b>⚠️ OVOZNI QABUL QILIB BO‘LMADI</b>\n\n{html.escape(str(exc))}")
     except Exception:
         logger.exception("AI Dublyaj Studio audio qabul qilishda xatolik")
         await status.edit_text(
-            "<b>❌ OVOZNI SAQLASHDA XATOLIK</b>\\n\\n"
+            "<b>❌ OVOZNI SAQLASHDA XATOLIK</b>\n\n"
             "Ovozni qayta yuborib ko‘r. Joriy replika hali saqlanmadi."
         )
     finally:
@@ -516,7 +516,7 @@ async def finalize_studio(message: Message, user_id: int) -> None:
 
     if session.get("status") == "ready_to_render":
         progress = await message.answer(
-            "<b>🎞 DUBLYAJ YIG‘ILMOQDA</b>\\n\\n"
+            "<b>🎞 DUBLYAJ YIG‘ILMOQDA</b>\n\n"
             "Barcha ovozlaring vaqt bo‘yicha videoga joylanmoqda. Bu video uzunligiga bog‘liq."
         )
         output_path = user_folder(user_id) / f"studio_result_{user_id}.mp4"
@@ -530,7 +530,7 @@ async def finalize_studio(message: Message, user_id: int) -> None:
         except Exception:
             logger.exception("Dublyaj videosini render qilishda xatolik")
             await progress.edit_text(
-                "<b>⚠️ VIDEONI YIG‘ISHDA XATOLIK</b>\\n\\n"
+                "<b>⚠️ VIDEONI YIG‘ISHDA XATOLIK</b>\n\n"
                 "Ovoz yozuvlaring saqlangan. /studio_finish buyrug‘i bilan qayta urinib ko‘r."
             )
             return
@@ -538,7 +538,7 @@ async def finalize_studio(message: Message, user_id: int) -> None:
         session["output_path"] = result_path
         session["status"] = "ready_to_send"
         save_studio_session(user_id, session)
-        await progress.edit_text("<b>✅ VIDEO TAYYOR</b>\\n\\nTelegramga yuboryapman.")
+        await progress.edit_text("<b>✅ VIDEO TAYYOR</b>\n\nTelegramga yuboryapman.")
 
     session = get_studio_session(user_id)
     if not session or session.get("status") != "ready_to_send":
@@ -552,7 +552,7 @@ async def finalize_studio(message: Message, user_id: int) -> None:
         await message.answer_video(
             FSInputFile(output_path, filename="Bekiuz-DubLab-dublyaj.mp4"),
             caption=(
-                "🎬 <b>AI DUBLYAJ STUDIO — TAYYOR!</b>\\n\\n"
+                "🎬 <b>AI DUBLYAJ STUDIO — TAYYOR!</b>\n\n"
                 "Sizning ovozlaringiz videoga vaqt bo‘yicha joylandi. "
                 "Original audio o‘rniga dublyaj ovozlari qo‘yildi."
             ),
@@ -567,7 +567,7 @@ async def finalize_studio(message: Message, user_id: int) -> None:
 
     clear_studio_session(user_id)
     await message.answer(
-        "<b>🧹 STUDIO FAYLLARI TOZALANDI</b>\\n\\n"
+        "<b>🧹 STUDIO FAYLLARI TOZALANDI</b>\n\n"
         "Dublyaj yakunlandi. Yangi loyiha uchun /studio buyrug‘ini yuboring."
     )
 
@@ -582,11 +582,11 @@ async def start_studio(message: Message) -> None:
     clear_studio_session(user.id)
     save_studio_session(user.id, {"status": "awaiting_video", "recordings": []})
     await message.answer(
-        "<b>🎬 AI DUBLYAJ STUDIO</b>\\n\\n"
+        "<b>🎬 AI DUBLYAJ STUDIO</b>\n\n"
         "Videoni yuboring. AI uni boshidan oxirigacha tahlil qiladi va barcha gaplarni "
         "bittadan beradi. Har bir gap ostida emotsiya, emotsiya kuchi va qanday aytish "
-        "kerakligi ko‘rsatiladi. Siz ovoz yuborganingizdan keyin keyingi replika chiqadi.\\n\\n"
-        "Barcha replikalar tugagach, bot dublyaj qilingan MP4 videoni yig‘adi.\\n\\n"
+        "kerakligi ko‘rsatiladi. Siz ovoz yuborganingizdan keyin keyingi replika chiqadi.\n\n"
+        "Barcha replikalar tugagach, bot dublyaj qilingan MP4 videoni yig‘adi.\n\n"
         "<i>Bekor qilish: /studio_cancel</i>",
         reply_markup=main_keyboard(),
     )
