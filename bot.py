@@ -215,7 +215,6 @@ async def process_video(
     filename: str,
     mime_type: str,
     file_size: int | None = None,
-    media_duration: float | None = None,
 ):
     if not private_chat_only(message):
         await message.answer("<b>🔒 SHAXSIY CHAT</b>\n\nDubLab’dan xavfsiz foydalanish uchun botga shaxsiy chatda yozing.")
@@ -625,6 +624,7 @@ async def process_audio(
     filename: str | None,
     mime_type: str,
     file_size: int | None = None,
+    media_duration: float | None = None,
 ):
     if not private_chat_only(message):
         await message.answer("<b>🔒 SHAXSIY CHAT</b>\n\nDubLab’dan foydalanish uchun menga shaxsiy chatda yoz.")
