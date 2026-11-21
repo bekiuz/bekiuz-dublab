@@ -215,6 +215,7 @@ async def process_video(
     filename: str,
     mime_type: str,
     file_size: int | None = None,
+    media_duration: float | None = None,
 ):
     if not private_chat_only(message):
         await message.answer("<b>🔒 SHAXSIY CHAT</b>\n\nDubLab’dan xavfsiz foydalanish uchun botga shaxsiy chatda yozing.")
@@ -434,6 +435,7 @@ async def process_studio_audio(
     filename: str | None,
     mime_type: str,
     file_size: int | None = None,
+    media_duration: float | None = None,
 ) -> None:
     user = message.from_user
     if user is None:
@@ -476,6 +478,7 @@ async def process_studio_audio(
                 "line_id": line["id"],
                 "start": float(line["start"]),
                 "end": float(line["end"]),
+                "duration": float(media_duration or 0.0),
                 "file_path": str(voice_path),
             }
         )
@@ -639,7 +642,9 @@ async def process_audio(
             await message.answer("Avval /studio bo‘limiga anime videosini yuboring.")
             return
         if studio_status == "recording":
-            await process_studio_audio(message, file_id, filename, mime_type, file_size)
+            await process_studio_audio(
+                message, file_id, filename, mime_type, file_size, media_duration
+            )
             return
         if studio_status in {"ready_to_render", "ready_to_send"}:
             await message.answer("Barcha replikalar saqlangan. Yakuniy videoni olish uchun /studio_finish yuboring.")
@@ -851,7 +856,7 @@ async def voice_handler(message: Message):
         return
     await process_audio(
         message, voice.file_id, "voice.ogg", voice.mime_type or "audio/ogg",
-        file_size=voice.file_size,
+        file_size=voice.file_size, media_duration=voice.duration,
     )
 
 
@@ -863,6 +868,7 @@ async def audio_handler(message: Message):
     await process_audio(
         message, audio.file_id, audio.file_name or "voice.mp3",
         audio.mime_type or "audio/mpeg", file_size=audio.file_size,
+        media_duration=audio.duration,
     )
 
 
