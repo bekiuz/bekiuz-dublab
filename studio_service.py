@@ -189,10 +189,22 @@ def render_dubbed_video(
     for index, item in enumerate(recordings, start=1):
         delay_ms = max(0, int(round(float(item.get("start", 0.0)) * 1000)))
         label = f"voice{index}"
+        slot_duration = max(
+            0.1,
+            float(item.get("end", 0.0)) - float(item.get("start", 0.0)),
+        )
+        recorded_duration = float(item.get("duration", 0.0) or 0.0)
+        tempo_filter = ""
+        if recorded_duration > 0:
+            tempo_ratio = recorded_duration / slot_duration
+            # Only make gentle corrections; extreme stretching harms voice quality.
+            if 0.80 <= tempo_ratio <= 1.25 and abs(tempo_ratio - 1.0) >= 0.04:
+                tempo_filter = f"atempo={tempo_ratio:.3f},"
         filters.append(
             f"[{index}:a]aresample=48000,"
             f"aformat=channel_layouts=stereo,"
             f"asetpts=PTS-STARTPTS,"
+            f"{tempo_filter}"
             f"adelay={delay_ms}|{delay_ms}[{label}]"
         )
         labels.append(f"[{label}]")
