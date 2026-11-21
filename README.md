@@ -16,7 +16,7 @@ Bot baland ovozni avtomatik ravishda yaxshi ijro deb hisoblamaydi. U vaziyatga m
 Botda ikki mustaqil bo‘lim mavjud:
 
 - Oddiy baholash: bitta sahna va bitta ovozli dublyaj urinishini 0–10 oralig‘ida tahlil qiladi.
-- AI Dublyaj Studio: /studio buyrug‘i bilan alohida sessiya boshlanadi. Video dialoglari vaqt bo‘yicha ajratiladi, matnlar o‘zbekchaga tarjima qilinadi va har bir replika emotsiya hamda ijro ko‘rsatmasi bilan bittadan yuboriladi. Foydalanuvchi har biriga alohida voice/audio jo‘natadi. Barcha ovozlar yig‘ilgach, FFmpeg ularni boshlanish vaqtlariga joylab MP4 tayyorlaydi.
+- AI Dublyaj Studio: /studio buyrug‘i bilan alohida sessiya boshlanadi. Video qaysi tilda bo‘lishidan qat’i nazar, dialoglar faqat o‘zbekchaga tarjima qilinadi; original tildagi replikalar foydalanuvchiga ko‘rsatilmaydi. Har bir o‘zbekcha replika emotsiya va ijro ko‘rsatmasi bilan bittadan yuboriladi. Foydalanuvchi har biriga alohida voice/audio jo‘natadi. Barcha ovozlar yig‘ilgach, FFmpeg ularni boshlanish vaqtlariga joylab MP4 tayyorlaydi.
 
 Studio uchun /studio_cancel sessiyani bekor qiladi, /studio_finish esa video yig‘ish yoki yuborish muvaffaqiyatsiz bo‘lsa qayta urinadi. Studio ma’lumotlari baholash sessiyasidan alohida saqlanadi.
 
