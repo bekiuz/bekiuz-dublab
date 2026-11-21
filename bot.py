@@ -14,7 +14,7 @@ from aiogram.client.telegram import TelegramAPIServer
 from aiogram.enums import ChatType, ParseMode
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import Command, CommandStart
-from aiogram.types import Message
+from aiogram.types import FSInputFile, KeyboardButton, Message, ReplyKeyboardMarkup
 
 from ai_service import analyze_video, delete_remote_file, evaluate_voice
 from config import (
@@ -31,6 +31,8 @@ from mtproto_download import (
     stop_mtproto,
 )
 from session_store import delete_session, delete_session_if_matches, get_session, remove_local_file, save_session
+from studio_service import analyze_dubbing_video, render_dubbed_video
+from studio_store import clear_studio_session, get_studio_session, save_studio_session
 
 logging.basicConfig(
     level=logging.INFO,
@@ -290,6 +292,330 @@ async def process_video(
         )
 
 
+
+
+def main_keyboard() -> ReplyKeyboardMarkup:
+    return ReplyKeyboardMarkup(
+        keyboard=[[KeyboardButton(text="🎬 AI Dublyaj Studio")]],
+        resize_keyboard=True,
+        input_field_placeholder="Bo‘limni tanlang",
+    )
+
+
+def _format_timestamp(seconds: float) -> str:
+    total_ms = max(0, int(round(seconds * 1000)))
+    minutes, remainder = divmod(total_ms, 60_000)
+    whole_seconds, millis = divmod(remainder, 1000)
+    return f"{minutes:02d}:{whole_seconds:02d}.{millis // 10:02d}"
+
+
+async def show_studio_line(message: Message, user_id: int) -> None:
+    session = get_studio_session(user_id)
+    if not session or session.get("status") != "recording":
+        return
+
+    dialogue = session.get("dialogue") or []
+    index = int(session.get("next_index", 0))
+    if index >= len(dialogue):
+        session["status"] = "ready_to_render"
+        save_studio_session(user_id, session)
+        await finalize_studio(message, user_id)
+        return
+
+    line = dialogue[index]
+    total = len(dialogue)
+    start = _format_timestamp(float(line["start"]))
+    end = _format_timestamp(float(line["end"]))
+    original = html.escape(line.get("original_text") or "Aniqlanmadi")
+    dub_text = html.escape(line.get("dub_text") or "")
+    speaker = html.escape(line.get("speaker") or "Personaj")
+    emotion = html.escape(line.get("emotion") or "aniqlanmagan")
+    delivery = html.escape(line.get("delivery") or "Tabiiy va ravon ovozda ayt.")
+    intensity = int(line.get("intensity", 5))
+
+    await message.answer(
+        f"<b>🎬 AI DUBLYAJ — {index + 1}/{total}</b>\\n\\n"
+        f"<b>👤 PERSONAJ:</b> {speaker}\\n"
+        f"<b>⏱ VAQT:</b> {start} — {end}\\n\\n"
+        f"<b>🌐 ORIGINAL:</b> {original}\\n"
+        f"<b>🎙 AYTISH KERAK:</b> {dub_text}\\n\\n"
+        f"<b>🎭 EMOTSIYA:</b> {emotion}\\n"
+        f"<b>🔥 EMOTSIYA KUCHI:</b> {intensity}/10\\n"
+        f"<b>🎧 OVOZ KO‘RSATMASI:</b> {delivery}\\n\\n"
+        "<i>Faqat shu replikani alohida voice yoki audio qilib yubor. "
+        "Ovoz qabul qilinsa, keyingi replika avtomatik chiqadi.</i>"
+    )
+
+
+async def process_studio_video(
+    message: Message,
+    file_id: str,
+    filename: str,
+    mime_type: str,
+    file_size: int | None = None,
+) -> None:
+    if not private_chat_only(message):
+        await message.answer("Dublyaj Studio faqat shaxsiy chatda ishlaydi.")
+        return
+    user = message.from_user
+    if user is None:
+        return
+
+    path = user_folder(user.id) / (
+        f"studio_scene_{message.message_id}{safe_extension(filename, '.mp4')}"
+    )
+    status = await message.answer(
+        "<b>🎬 AI DUBLYAJ STUDIO</b>\\n\\n"
+        "Videoni yuklayapman. Keyin barcha dialoglarni vaqt va emotsiya bo‘yicha ajrataman."
+    )
+    try:
+        await download_to_path(
+            message,
+            file_id,
+            path,
+            file_size=file_size,
+            message_id=message.message_id,
+            chat_id=message.chat.id,
+        )
+        await status.edit_text(
+            "<b>🧠 VIDEO TAHLIL QILINYAPTI</b>\\n\\n"
+            "AI personajlarni, gaplarni, vaqtlarini va har bir replikaning emotsiyasini aniqlayapti. "
+            "Video uzunligiga qarab biroz vaqt olishi mumkin."
+        )
+        analysis = await asyncio.to_thread(analyze_dubbing_video, str(path), mime_type)
+        dialogue = analysis.get("dialogue") or []
+        if not dialogue:
+            raise ValueError(
+                "Videoda aniq eshitiladigan dialog topilmadi. Dialogi bor video yuborib ko‘r."
+            )
+
+        # Eski studio sessiyasi fayllarini yangi tahlil saqlangandan keyin tozalaymiz.
+        clear_studio_session(user.id)
+        session = {
+            "status": "recording",
+            "video_path": str(path),
+            "video_name": filename,
+            "video_mime": mime_type,
+            "video_language": analysis.get("video_language", "aniqlanmadi"),
+            "dialogue": dialogue,
+            "next_index": 0,
+            "recordings": [],
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }
+        save_studio_session(user.id, session)
+        await status.edit_text(
+            f"<b>✅ TAHLIL TAYYOR</b>\\n\\n"
+            f"🌐 Video tili: {html.escape(session['video_language'])}\\n"
+            f"🗣 Replikalar: {len(dialogue)} ta\\n\\n"
+            "Endi har bir replikani bittadan yozib boramiz."
+        )
+        await message.answer(
+            "<b>ℹ️ OVOZ YO‘LI</b>\\n"
+            "Original dialog o‘rniga sizning ovozingiz qo‘yiladi. Ushbu ilk versiyada "
+            "original audio to‘liq o‘chiriladi, shu sabab fon musiqasi va effektlar ham saqlanmaydi. "
+            "Ularni alohida ajratib saqlash keyingi bosqichda qo‘shiladi."
+        )
+        await show_studio_line(message, user.id)
+    except ValueError as exc:
+        path.unlink(missing_ok=True)
+        await status.edit_text(f"<b>⚠️ TAHLILNI BAJARIB BO‘LMADI</b>\\n\\n{html.escape(str(exc))}")
+    except Exception:
+        logger.exception("AI Dublyaj Studio video tahlilida xatolik")
+        path.unlink(missing_ok=True)
+        await status.edit_text(
+            "<b>❌ VIDEO TAHLILIDA XATOLIK</b>\\n\\n"
+            "Videoni tahlil qilishda muammo bo‘ldi. /studio orqali qayta boshlang."
+        )
+
+
+async def process_studio_audio(
+    message: Message,
+    file_id: str,
+    filename: str | None,
+    mime_type: str,
+    file_size: int | None = None,
+) -> None:
+    user = message.from_user
+    if user is None:
+        return
+    session = get_studio_session(user.id)
+    if not session:
+        return
+    if session.get("status") != "recording":
+        await message.answer("Studio hozir ovoz qabul qilmayapti. /studio_finish yoki /studio_cancel buyrug‘ini ishlating.")
+        return
+
+    index = int(session.get("next_index", 0))
+    dialogue = session.get("dialogue") or []
+    if index >= len(dialogue):
+        session["status"] = "ready_to_render"
+        save_studio_session(user.id, session)
+        await finalize_studio(message, user.id)
+        return
+
+    extension = safe_extension(filename, ".ogg" if "ogg" in mime_type else ".mp3")
+    voice_path = user_folder(user.id) / f"studio_voice_{message.message_id}{extension}"
+    status = await message.answer(
+        f"<b>🎧 {index + 1}/{len(dialogue)} — OVOZ QABUL QILINDI</b>\\n\\n"
+        "Ovoz faylini saqlayapman va kerakli vaqtga joylash uchun tayyorlayapman."
+    )
+    saved = False
+    try:
+        await download_to_path(
+            message,
+            file_id,
+            voice_path,
+            file_size=file_size,
+            message_id=message.message_id,
+            chat_id=message.chat.id,
+        )
+        line = dialogue[index]
+        recordings = list(session.get("recordings") or [])
+        recordings.append(
+            {
+                "line_id": line["id"],
+                "start": float(line["start"]),
+                "end": float(line["end"]),
+                "file_path": str(voice_path),
+            }
+        )
+        session["recordings"] = recordings
+        session["next_index"] = index + 1
+        session["status"] = "recording"
+        save_studio_session(user.id, session)
+        saved = True
+        await status.edit_text(
+            f"<b>✅ {index + 1}/{len(dialogue)} — SAQLANDI</b>\\n\\n"
+            "Ovozing shu replika boshlanadigan vaqtga joylanadi."
+        )
+
+        if session["next_index"] >= len(dialogue):
+            session["status"] = "ready_to_render"
+            save_studio_session(user.id, session)
+            await finalize_studio(message, user.id)
+        else:
+            await show_studio_line(message, user.id)
+    except ValueError as exc:
+        await status.edit_text(f"<b>⚠️ OVOZNI QABUL QILIB BO‘LMADI</b>\\n\\n{html.escape(str(exc))}")
+    except Exception:
+        logger.exception("AI Dublyaj Studio audio qabul qilishda xatolik")
+        await status.edit_text(
+            "<b>❌ OVOZNI SAQLASHDA XATOLIK</b>\\n\\n"
+            "Ovozni qayta yuborib ko‘r. Joriy replika hali saqlanmadi."
+        )
+    finally:
+        if not saved:
+            voice_path.unlink(missing_ok=True)
+
+
+async def finalize_studio(message: Message, user_id: int) -> None:
+    session = get_studio_session(user_id)
+    if not session:
+        await message.answer("Faol Dublyaj Studio sessiyasi topilmadi.")
+        return
+
+    if session.get("status") == "ready_to_render":
+        progress = await message.answer(
+            "<b>🎞 DUBLYAJ YIG‘ILMOQDA</b>\\n\\n"
+            "Barcha ovozlaring vaqt bo‘yicha videoga joylanmoqda. Bu video uzunligiga bog‘liq."
+        )
+        output_path = user_folder(user_id) / f"studio_result_{user_id}.mp4"
+        try:
+            result_path = await asyncio.to_thread(
+                render_dubbed_video,
+                session["video_path"],
+                session.get("recordings") or [],
+                str(output_path),
+            )
+        except Exception:
+            logger.exception("Dublyaj videosini render qilishda xatolik")
+            await progress.edit_text(
+                "<b>⚠️ VIDEONI YIG‘ISHDA XATOLIK</b>\\n\\n"
+                "Ovoz yozuvlaring saqlangan. /studio_finish buyrug‘i bilan qayta urinib ko‘r."
+            )
+            return
+
+        session["output_path"] = result_path
+        session["status"] = "ready_to_send"
+        save_studio_session(user_id, session)
+        await progress.edit_text("<b>✅ VIDEO TAYYOR</b>\\n\\nTelegramga yuboryapman.")
+
+    session = get_studio_session(user_id)
+    if not session or session.get("status") != "ready_to_send":
+        return
+    output_path = session.get("output_path")
+    if not output_path or not Path(output_path).is_file():
+        await message.answer("Tayyor video fayli topilmadi. /studio_finish orqali qayta urinib ko‘ring.")
+        return
+
+    try:
+        await message.answer_video(
+            FSInputFile(output_path, filename="Bekiuz-DubLab-dublyaj.mp4"),
+            caption=(
+                "🎬 <b>AI DUBLYAJ STUDIO — TAYYOR!</b>\\n\\n"
+                "Sizning ovozlaringiz videoga vaqt bo‘yicha joylandi. "
+                "Original audio o‘rniga dublyaj ovozlari qo‘yildi."
+            ),
+        )
+    except Exception:
+        logger.exception("Tayyor dublyaj videosini Telegramga yuborib bo‘lmadi")
+        await message.answer(
+            "Video tayyor, ammo Telegramga yuborishda xatolik bo‘ldi. "
+            "Video hajmi katta bo‘lishi mumkin. /studio_finish bilan qayta urinib ko‘ring."
+        )
+        return
+
+    clear_studio_session(user_id)
+    await message.answer(
+        "<b>🧹 STUDIO FAYLLARI TOZALANDI</b>\\n\\n"
+        "Dublyaj yakunlandi. Yangi loyiha uchun /studio buyrug‘ini yuboring."
+    )
+
+
+async def start_studio(message: Message) -> None:
+    if not private_chat_only(message):
+        await message.answer("AI Dublyaj Studio faqat shaxsiy chatda ishlaydi.")
+        return
+    user = message.from_user
+    if user is None:
+        return
+    clear_studio_session(user.id)
+    save_studio_session(user.id, {"status": "awaiting_video", "recordings": []})
+    await message.answer(
+        "<b>🎬 AI DUBLYAJ STUDIO</b>\\n\\n"
+        "Videoni yuboring. AI uni boshidan oxirigacha tahlil qiladi va barcha gaplarni "
+        "bittadan beradi. Har bir gap ostida emotsiya, emotsiya kuchi va qanday aytish "
+        "kerakligi ko‘rsatiladi. Siz ovoz yuborganingizdan keyin keyingi replika chiqadi.\\n\\n"
+        "Barcha replikalar tugagach, bot dublyaj qilingan MP4 videoni yig‘adi.\\n\\n"
+        "<i>Bekor qilish: /studio_cancel</i>",
+        reply_markup=main_keyboard(),
+    )
+
+
+@dp.message(Command("studio"))
+async def studio_command_handler(message: Message):
+    await start_studio(message)
+
+
+@dp.message(Command("studio_cancel"))
+async def studio_cancel_handler(message: Message):
+    user = message.from_user
+    if user is None:
+        return
+    previous = clear_studio_session(user.id)
+    if previous:
+        await message.answer("🧹 AI Dublyaj Studio sessiyasi va vaqtinchalik fayllari o‘chirildi.")
+    else:
+        await message.answer("Faol Dublyaj Studio sessiyasi yo‘q.")
+
+
+@dp.message(Command("studio_finish"))
+async def studio_finish_handler(message: Message):
+    user = message.from_user
+    if user is None:
+        return
+    await finalize_studio(message, user.id)
+
 async def process_audio(
     message: Message,
     file_id: str,
@@ -305,6 +631,19 @@ async def process_audio(
     if user is None:
         await message.answer("<b>⚠️ FOYDALANUVCHI ANIQLANMADI</b>\n\nQayta urinib ko‘r.")
         return
+
+    studio_session = get_studio_session(user.id)
+    if studio_session:
+        studio_status = studio_session.get("status")
+        if studio_status == "awaiting_video":
+            await message.answer("Avval /studio bo‘limiga anime videosini yuboring.")
+            return
+        if studio_status == "recording":
+            await process_studio_audio(message, file_id, filename, mime_type, file_size)
+            return
+        if studio_status in {"ready_to_render", "ready_to_send"}:
+            await message.answer("Barcha replikalar saqlangan. Yakuniy videoni olish uchun /studio_finish yuboring.")
+            return
 
     session = get_session(user.id)
     if not session or not session.get("video_path") or not Path(session["video_path"]).is_file():
@@ -383,10 +722,16 @@ async def start_handler(message: Message):
         "🎤 <b>2. OVOZINGNI YUBOR</b> — alohida voice yoki audio yubor.\n\n"
         "📊 <b>3. BAHO VA MASLAHAT</b> — emotsiya, ifoda, ritm, pauza va talaffuz "
         "bo‘yicha fikr hamda 0 dan 10 gacha butun sonli baho ol.\n\n"
+        "<b>BO‘LIMLAR</b>\n"
+        "🎯 Oddiy dublyaj baholash — video + bitta ovoz va 0–10 baho.\n"
+        "🎬 AI Dublyaj Studio — butun videoni replikama-replika dublyaj qilish.\n\n"
         "<b>BUYRUQLAR</b>\n"
+        "/studio — AI Dublyaj Studio\n"
+        "/studio_cancel — Studio sessiyasini bekor qilish\n"
         "/help — foydalanish qo‘llanmasi\n"
-        "/reset — joriy sahnani almashtirish\n\n"
-        "<i>Avval anime videosini yuborishdan boshlaymiz. ✨</i>"
+        "/reset — ikkala bo‘lim sessiyasini tozalash\n\n"
+        "<i>Kerakli bo‘limni tanlang. ✨</i>",
+        reply_markup=main_keyboard(),
     )
 
 
@@ -404,9 +749,14 @@ async def help_handler(message: Message):
         "🎭 Emotsiya mosligi va uni ovozda yetkazish kuchi alohida baholanadi.\n"
         "⚠️ 0–5: sahnaga mos emas; 6–7: qisman mos; 8–9: yaxshi; 10: juda aniq.\n"
         "🧹 Baholash tugagach, sahna avtomatik o‘chiriladi.\n\n"
+        "<b>🎬 AI DUBLYAJ STUDIO</b>\n"
+        "/studio — yangi to‘liq dublyaj loyihasi\n"
+        "Har bir replika alohida chiqadi; emotsiyasini ko‘rib, ovoz yuborasiz.\n"
+        "/studio_finish — tayyor videoni qayta yuborish\n"
+        "/studio_cancel — Studio loyihasini bekor qilish\n\n"
         "<b>FOYDALI BUYRUQLAR</b>\n"
         "/start — boshidan boshlash\n"
-        "/reset — oldingi video sessiyasini tozalash\n"
+        "/reset — barcha sessiyalarni tozalash\n"
         "/help — ushbu qo‘llanma\n\n"
         "<i>Eslatma: katta videolarni yuklash MTProto ulanishiga bog‘liq. "
         "Gemini va hosting limitlari ham amal qiladi.</i>"
@@ -420,13 +770,15 @@ async def reset_handler(message: Message):
         await message.answer("<b>⚠️ FOYDALANUVCHI ANIQLANMADI</b>\n\nQayta urinib ko‘r.")
         return
     previous = delete_session(user.id)
+    studio_previous = clear_studio_session(user.id)
     if previous:
         remove_local_file(previous.get("video_path"))
         if previous.get("gemini_file_name"):
             await asyncio.to_thread(delete_remote_file, previous["gemini_file_name"])
-        await message.answer("<b>🧹 SAHNA TOZALANDI</b>\n\nYangi anime videosini yuborishing mumkin.")
+    if previous or studio_previous:
+        await message.answer("<b>🧹 BARCHA SESSIYALAR TOZALANDI</b>\n\nYangi loyiha yoki tahlilni boshlashingiz mumkin.")
     else:
-        await message.answer("<b>📭 FAOL SAHNA YO‘Q</b>\n\nTahlilni boshlash uchun anime videosini yubor.")
+        await message.answer("<b>📭 FAOL SESSIYA YO‘Q</b>\n\nBoshlash uchun /studio yuboring yoki anime videosini jo‘nating.")
 
 
 @dp.message(F.video)
@@ -436,6 +788,16 @@ async def video_handler(message: Message):
         return
     filename = video.file_name or "anime_clip.mp4"
     mime_type = video.mime_type or mimetypes.guess_type(filename)[0] or "video/mp4"
+    user = message.from_user
+    studio_session = get_studio_session(user.id) if user else None
+    if studio_session and studio_session.get("status") == "awaiting_video":
+        await process_studio_video(
+            message, video.file_id, filename, mime_type, file_size=video.file_size
+        )
+        return
+    if studio_session and studio_session.get("status") in {"recording", "ready_to_render", "ready_to_send"}:
+        await message.answer("Avval joriy Studio loyihasini yakunlang yoki /studio_cancel bilan bekor qiling.")
+        return
     await process_video(
         message, video.file_id, filename, mime_type, file_size=video.file_size
     )
@@ -452,6 +814,17 @@ async def document_handler(message: Message):
     if mime_type.startswith("video/") or Path(filename).suffix.lower() in {
         ".mp4", ".mov", ".webm", ".mkv", ".avi"
     }:
+        user = message.from_user
+        studio_session = get_studio_session(user.id) if user else None
+        if studio_session and studio_session.get("status") == "awaiting_video":
+            await process_studio_video(
+                message, document.file_id, filename, mime_type or "video/mp4",
+                file_size=document.file_size,
+            )
+            return
+        if studio_session and studio_session.get("status") in {"recording", "ready_to_render", "ready_to_send"}:
+            await message.answer("Avval joriy Studio loyihasini yakunlang yoki /studio_cancel bilan bekor qiling.")
+            return
         await process_video(
             message, document.file_id, filename, mime_type or "video/mp4",
             file_size=document.file_size,
@@ -495,6 +868,9 @@ async def audio_handler(message: Message):
 
 @dp.message(F.text)
 async def text_fallback(message: Message):
+    if (message.text or "").strip() == "🎬 AI Dublyaj Studio":
+        await start_studio(message)
+        return
     await message.answer(
         "<b>🎬 AVVAL SAHNA, KEYIN OVOZ</b>\n\n"
         "Anime videosini yubor. Tahlildan keyin dublyaj ovozingni alohida jo‘natishing mumkin.\n\n"
