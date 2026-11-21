@@ -14,7 +14,7 @@ COPY requirements.txt /app/requirements.txt
 RUN python -m pip install --no-cache-dir --upgrade pip \
     && pip install --no-cache-dir -r /app/requirements.txt
 
-COPY ai_service.py bot.py config.py mtproto_download.py session_store.py /app/
+COPY ai_service.py bot.py config.py mtproto_download.py session_store.py studio_service.py studio_store.py /app/
 COPY entrypoint.sh /app/entrypoint.sh
 
 RUN chmod +x /app/entrypoint.sh && mkdir -p /data
