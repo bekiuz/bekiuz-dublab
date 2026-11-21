@@ -18,31 +18,35 @@ from ai_service import (
 logger = logging.getLogger("bekiuz-dublab.studio")
 
 DIALOGUE_PROMPT = """
-Sen professional dublyaj rejissyori va dialog muharririsan. Berilgan videoni boshidan oxirigacha tahlil qil.
+Sen professional dublyaj rejissyori va o‘zbekcha tarjimonisan. Berilgan videoni boshidan oxirigacha tahlil qil.
 
-Maqsad: foydalanuvchi har bir replika uchun alohida ovoz yozib, keyin ularni original dialog o‘rniga joylay olishi kerak.
+QAT’IY TIL TALABI:
+- Manba video qaysi tilda bo‘lishidan qat’i nazar, foydalanuvchiga faqat O‘ZBEK TILIDA (lotin yozuvida) replika tayyorla.
+- Original tildagi transkripsiyani, jumlani, subtitrni yoki til nomini natijada qaytarma.
+- Har bir dub_text tabiiy, ravon va mazmunni saqlagan o‘zbekcha tarjima bo‘lsin.
+- Ismlar va zarur atamalar asl talaffuzda qolishi mumkin, qolgan hamma gap o‘zbekcha bo‘lsin.
+- Emotsiya va ovoz ko‘rsatmalari ham faqat o‘zbek tilida bo‘lsin.
 
-Faqat videoda HAQIQATAN ESHITILADIGAN inson/personaj nutqini ketma-ket ajrat. Musiqa, effekt, nafas, kulgi yoki noaniq shovqinni dialog deb to‘qima. Bir-birining ustiga tushgan replikalarni ham alohida qaytar; vaqtlarini iloji boricha aniq belgilagin.
+Maqsad: foydalanuvchi har bir replika uchun alohida o‘zbekcha ovoz yozadi, keyin ular videodagi original dialog o‘rniga joylanadi.
+
+Faqat videoda HAQIQATAN ESHITILADIGAN inson/personaj nutqini ketma-ket ajrat. Musiqa, effekt, nafas, kulgi yoki noaniq shovqinni dialog deb to‘qima. Bir-birining ustiga tushgan replikalarni alohida qaytar; vaqtlarini iloji boricha aniq belgilagin.
 
 Har bir replika uchun:
 - start: videoning boshidan boshlab boshlanish vaqti, soniya ko‘rinishida, kasrli son
 - end: replika tugash vaqti, soniya ko‘rinishida
 - speaker: kadr va kontekstdan ajrata olsang Personaj 1, Personaj 2 kabi barqaror nom; bilmasang Personaj
-- original_text: asl tilda eshitilgan gapning transkripsiyasi
-- dub_text: tabiiy, qisqa va mazmunni saqlagan o‘zbekcha (lotin) tarjima. Original gap o‘zbekcha bo‘lsa, matnni to‘g‘ri yozib ber.
-- emotion: masalan sog‘inch, quvonch, g‘azab, qo‘rquv, hayrat, qayg‘u, xotirjamlik
-- intensity: emotsiya kuchi 0 dan 10 gacha BUTUN SON; bu personaj hissiyotining kuchi, ovoz balandligi emas
-- delivery: foydalanuvchi qanday ovoz berishi kerakligi haqida o‘zbekcha qisqa va aniq ko‘rsatma (tezlik, ohang, urg‘u, pauza, ovoz kuchi)
+- dub_text: faqat o‘zbekcha (lotin) tabiiy tarjima; original tildagi matnni yozma
+- emotion: sog‘inch, quvonch, g‘azab, qo‘rquv, hayrat, qayg‘u, xotirjamlik kabi emotsiya nomi
+- intensity: emotsiya kuchi 0 dan 10 gacha BUTUN SON; ovoz balandligi emas, hissiyot kuchi
+- delivery: foydalanuvchi qanday ovoz berishi kerakligi haqida faqat o‘zbekcha qisqa va aniq ko‘rsatma (tezlik, ohang, urg‘u, pauza, ovoz kuchi)
 
 JAVOB FAQAT VALID JSON BO‘LSIN. Markdown, izoh yoki code block ishlatma. Aynan quyidagi shakl:
 {
-  "video_language": "aniqlangan til",
   "dialogue": [
     {
       "start": 1.2,
       "end": 2.8,
       "speaker": "Personaj 1",
-      "original_text": "I missed you",
       "dub_text": "Seni sog‘indim.",
       "emotion": "sog‘inch",
       "intensity": 9,
@@ -54,12 +58,12 @@ JAVOB FAQAT VALID JSON BO‘LSIN. Markdown, izoh yoki code block ishlatma. Aynan
 Qoidalar:
 - Dialoglarni videodagi vaqt tartibida joylashtir.
 - Vaqtlar taxminiy bo‘lsa ham, real video vaqtiga mos va ketma-ket bo‘lsin.
-- Eshitilmagan so‘zlarni uydirma; aniq bo‘lmagan nutqni ro‘yxatdan chiqar.
+- Eshitilmagan so‘zlarni uydirma; noaniq nutqni ro‘yxatdan chiqar.
 - Ekrandagi subtitrni nutq deb qabul qilma; avval audioda eshitilganini tekshir.
 - Dialog yo‘q bo‘lsa dialogue bo‘sh massiv bo‘lsin.
 - dialogue ichida 80 tadan ortiq replika qaytarma.
-- JSON ichidagi barcha matnlar o‘zbekcha lotin yozuvida bo‘lsin, original_text bundan mustasno.
-""".strip()
+- JSON ichidagi qiymatlarning barchasi (kalitlardan tashqari) o‘zbek tilida bo‘lsin.
+"""
 
 
 def _extract_json(raw_text: str) -> dict[str, Any]:
@@ -125,7 +129,6 @@ def analyze_dubbing_video(video_path: str, mime_type: str | None = None) -> dict
             except (TypeError, ValueError):
                 continue
 
-            original_text = str(item.get("original_text") or "").strip()
             dub_text = str(item.get("dub_text") or "").strip()
             if not dub_text or end <= start:
                 continue
@@ -142,7 +145,6 @@ def analyze_dubbing_video(video_path: str, mime_type: str | None = None) -> dict
                     "start": round(start, 2),
                     "end": round(end, 2),
                     "speaker": str(item.get("speaker") or "Personaj").strip()[:80],
-                    "original_text": original_text[:1200],
                     "dub_text": dub_text[:1200],
                     "emotion": str(item.get("emotion") or "aniqlanmagan").strip()[:80],
                     "intensity": intensity,
@@ -154,10 +156,7 @@ def analyze_dubbing_video(video_path: str, mime_type: str | None = None) -> dict
         for index, line in enumerate(dialogue, start=1):
             line["id"] = index
 
-        return {
-            "video_language": str(parsed.get("video_language") or "aniqlanmadi")[:80],
-            "dialogue": dialogue,
-        }
+        return {"dialogue": dialogue}
     finally:
         _delete_uploaded_files(client, uploaded_files)
         client.close()
