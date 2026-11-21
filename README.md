@@ -11,6 +11,17 @@ AI yordamida anime dublyaj sahnasi va ovoz aktyorligini baholovchi Telegram bot.
 
 Bot baland ovozni avtomatik ravishda yaxshi ijro deb hisoblamaydi. U vaziyatga mos aktyorlikni baholashga yo‘naltirilgan.
 
+## AI Dublyaj Studio
+
+Botda ikki mustaqil bo‘lim mavjud:
+
+- Oddiy baholash: bitta sahna va bitta ovozli dublyaj urinishini 0–10 oralig‘ida tahlil qiladi.
+- AI Dublyaj Studio: /studio buyrug‘i bilan alohida sessiya boshlanadi. Video dialoglari vaqt bo‘yicha ajratiladi, matnlar o‘zbekchaga tarjima qilinadi va har bir replika emotsiya hamda ijro ko‘rsatmasi bilan bittadan yuboriladi. Foydalanuvchi har biriga alohida voice/audio jo‘natadi. Barcha ovozlar yig‘ilgach, FFmpeg ularni boshlanish vaqtlariga joylab MP4 tayyorlaydi.
+
+Studio uchun /studio_cancel sessiyani bekor qiladi, /studio_finish esa video yig‘ish yoki yuborish muvaffaqiyatsiz bo‘lsa qayta urinadi. Studio ma’lumotlari baholash sessiyasidan alohida saqlanadi.
+
+Muhim cheklov: hozirgi ilk renderda original video audio treki to‘liq olib tashlanadi va foydalanuvchi ovozlari qo‘yiladi. Shu sabab original musiqa va fon effektlari ham saqlanmaydi. Keyingi bosqichda nutqni musiqa/effektlardan ajratish uchun alohida source-separation ishlovi kerak. Dialog vaqt belgilari Gemini tahliliga bog‘liq, shuning uchun murakkab yoki ustma-ust dialoglarda qo‘lda tuzatish talab qilinishi mumkin.
+
 ## Katta videolarni yuklash
 
 Oddiy Telegram Bot API orqali getFile yuklab olish chegarasi 20 MB. Bekiuz DubLab katta fayllarni olish uchun Telethon + MTProto dan foydalanadi:
@@ -126,4 +137,4 @@ MTProto yuklab olish yoqilgan bo‘lsa, odatda Local Bot API server shart emas.
 - [x] Lokal sessiya saqlash
 - [x] MTProto orqali katta media yuklash integratsiyasi
 - [ ] Real Telegram bot bilan 20 MB dan katta faylda sinov
-- [ ] Web dashboard va baholash tarixi
+- [x] AI Dublyaj Studio: replikama-replika tarjima, emotsiya ko‘rsatmasi va voice yozish\n- [x] Dublyaj ovozlarini vaqt bo‘yicha videoga joylab MP4 eksport qilish\n- [ ] Original musiqani/effektlarni dialogdan alohida saqlash\n- [ ] Web dashboard va baholash tarixi
