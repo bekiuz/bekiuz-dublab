@@ -234,6 +234,9 @@ async def process_video(
         "<i>Bu biroz vaqt olishi mumkin.</i>"
     )
 
+
+    # Clean up the temporary upload if it never becomes the active session.
+    session_saved = False
     try:
         download_started = time.monotonic()
         await download_to_path(
@@ -273,6 +276,7 @@ async def process_video(
                 "updated_at": datetime.now(timezone.utc).isoformat(),
             },
         )
+        session_saved = True
         await status.edit_text("<b>✅ SAHNA TAHLILI TAYYOR</b>\n\nQuyida DubLab murabbiyining xulosasi.")
         await answer_long(message, result)
         await message.answer(
@@ -282,8 +286,12 @@ async def process_video(
             "<i>Yangi video yuborsang, avvalgi sahna yangilanadi.</i>"
         )
     except ValueError as exc:
+        if not session_saved:
+            remove_local_file(str(path))
         await status.edit_text(f"<b>⚠️ TAHLILNI BAJARIB BO‘LMADI</b>\n\n{html.escape(str(exc))}")
     except Exception:
+        if not session_saved:
+            remove_local_file(str(path))
         logger.exception("Videoni tahlil qilishda xatolik")
         await status.edit_text(
             "<b>⚠️ GEMINI TAHLILNI YAKUNLAY OLMADI</b>\n\n"
