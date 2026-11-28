@@ -258,11 +258,6 @@ async def process_video(
         logger.info("Gemini sahna tahlili tugadi: %.1f soniya", time.monotonic() - analysis_started)
         result = analysis_data["text"]
         previous = get_session(user.id)
-        if previous:
-            remove_local_file(previous.get("video_path"))
-            if previous.get("gemini_file_name"):
-                await asyncio.to_thread(delete_remote_file, previous["gemini_file_name"])
-
         save_session(
             user.id,
             {
@@ -277,6 +272,12 @@ async def process_video(
             },
         )
         session_saved = True
+
+        # Save the new session first; only then remove the previous session's files.
+        if previous:
+            remove_local_file(previous.get("video_path"))
+            if previous.get("gemini_file_name"):
+                await asyncio.to_thread(delete_remote_file, previous["gemini_file_name"])
         await status.edit_text("<b>✅ SAHNA TAHLILI TAYYOR</b>\n\nQuyida DubLab murabbiyining xulosasi.")
         await answer_long(message, result)
         await message.answer(
